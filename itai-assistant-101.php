@@ -59,4 +59,26 @@ function get_secret_key() {
     }
     return $secret_key;
 }
+
+function create_student_table() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'tbit_ai_assistant101_student';
+    
+    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        $charset_collate = $wpdb->get_charset_collate();
+    
+        $sql = "CREATE TABLE $table_name (
+            student_name varchar(255) NOT NULL,
+            student_surname varchar(255) NOT NULL,
+            student_username varchar(255) NOT NULL UNIQUE,
+            student_password varchar(255) NOT NULL,
+            PRIMARY KEY  (student_username)
+        ) $charset_collate;";
+    
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+}
+
+register_activation_hook(__FILE__, 'create_student_table');
 ?>

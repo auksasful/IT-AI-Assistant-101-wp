@@ -9,27 +9,50 @@ error_log('login.php script executed');
 
 // Check if form is submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    error_log('Form submitted');
-    $api_key = $_POST['api_key'];
+    if (isset($_POST['api_key'])) {
+        error_log('Form submitted');
+        $api_key = $_POST['api_key'];
 
-    $api_connector = new ApiConnector($api_key);
+        $api_connector = new ApiConnector($api_key);
 
-    // Call the method to test the connection and handle the result
-    $jwt_token = $api_connector->test_connection();
+        // Call the method to test the connection and handle the result
+        $jwt_token = $api_connector->test_connection();
 
-    if ($jwt_token) {
-        // Store the JWT token in a session
-        $_SESSION['jwt_token'] = $jwt_token;
+        if ($jwt_token) {
+            // Store the JWT token in a session
+            $_SESSION['jwt_token'] = $jwt_token;
 
-        // Redirect to the dashboard page
-        error_log('Redirecting to dashboard');
-        wp_redirect(home_url('/itaiassistant101/dashboard'));
-        exit();
-    } else {
-        // Redirect to the login page
-        error_log('Redirecting to login (invalid token)');
-        wp_redirect(home_url('/itaiassistant101/login'));
-        exit();
+            // Redirect to the dashboard page
+            error_log('Redirecting to dashboard');
+            wp_redirect(home_url('/itaiassistant101/dashboard'));
+            exit();
+        } else {
+            // Redirect to the login page
+            error_log('Redirecting to login (invalid token)');
+            wp_redirect(home_url('/itaiassistant101/login'));
+            exit();
+        }
+    } elseif (isset($_POST['student_login'])) {
+        error_log('Student login form submitted');
+        $username = sanitize_text_field($_POST['username']);
+        $password = sanitize_text_field($_POST['password']);
+
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'student';
+        $student = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE student_username = %s", $username));
+
+        if ($student && password_verify($password, $student->student_password)) {
+            // Store student info in session
+            $_SESSION['student_username'] = $student->student_username;
+
+            // Redirect to the student dashboard page
+            error_log('Student login successful, redirecting to student dashboard');
+            wp_redirect(home_url('/itaiassistant101/student_dashboard'));
+            exit();
+        } else {
+            error_log('Invalid student username or password');
+            echo 'Invalid username or password';
+        }
     }
 }
 
@@ -52,10 +75,25 @@ if (isset($_SESSION['jwt_token'])) {
     error_log('No JWT token in session');
 }
 
-// Display the form
+// Display the forms
 ?>
+<h1>Login</h1>
+
+<!-- API Key Login Form -->
 <form method="POST">
     <label for="api_key">API Key:</label>
     <input type="text" id="api_key" name="api_key">
     <input type="submit" value="Log in">
+</form>
+
+<!-- Student Login Form -->
+<h2>Student Login</h2>
+<form method="POST">
+    <label for="username">Username:</label>
+    <input type="text" id="username" name="username" required>
+    <br>
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required>
+    <br>
+    <input type="submit" name="student_login" value="Log in">
 </form>
