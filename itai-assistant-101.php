@@ -2,7 +2,7 @@
 /*
 Plugin Name: ITAI Assistant 101
 Description: A simple plugin for teacher authentication using API key.
-Version: 1.0
+Version: 1.01
 Author: Your Name
 */
 
@@ -61,6 +61,7 @@ function get_secret_key() {
 }
 
 function create_student_table() {
+    error_log('create_student_table called'); // Debug statement
     global $wpdb;
     $table_name = $wpdb->prefix . 'tbit_ai_assistant101_student';
     
@@ -77,6 +78,10 @@ function create_student_table() {
     
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
+        error_log('Table created: ' . $table_name); // Debug statement
+    } 
+    else {
+        error_log('Table already exists: ' . $table_name); // Debug statement
     }
 }
 

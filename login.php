@@ -33,12 +33,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             exit();
         }
     } elseif (isset($_POST['student_login'])) {
+        // TODO: Tie with teacher API key
         error_log('Student login form submitted');
         $username = sanitize_text_field($_POST['username']);
         $password = sanitize_text_field($_POST['password']);
 
         global $wpdb;
-        $table_name = $wpdb->prefix . 'student';
+        $table_name = $wpdb->prefix . 'tbit_ai_assistant101_student';
         $student = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE student_username = %s", $username));
 
         if ($student && password_verify($password, $student->student_password)) {
@@ -46,8 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $_SESSION['student_username'] = $student->student_username;
 
             // Redirect to the student dashboard page
-            error_log('Student login successful, redirecting to student dashboard');
-            wp_redirect(home_url('/itaiassistant101/student_dashboard'));
+            error_log('Student login successful, redirecting to dashboard');
+            wp_redirect(home_url('/itaiassistant101/dashboard'));
             exit();
         } else {
             error_log('Invalid student username or password');
