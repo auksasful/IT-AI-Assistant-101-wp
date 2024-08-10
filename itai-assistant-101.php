@@ -60,20 +60,23 @@ function get_secret_key() {
     return $secret_key;
 }
 
-function create_student_table() {
-    error_log('create_student_table called'); // Debug statement
+function create_user_table() {
+    error_log('create_user_table called'); // Debug statement
     global $wpdb;
-    $table_name = $wpdb->prefix . 'tbit_ai_assistant101_student';
+    $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
     
     if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
         $charset_collate = $wpdb->get_charset_collate();
     
         $sql = "CREATE TABLE $table_name (
-            student_name varchar(255) NOT NULL,
-            student_surname varchar(255) NOT NULL,
-            student_username varchar(255) NOT NULL UNIQUE,
-            student_password varchar(255) NOT NULL,
-            PRIMARY KEY  (student_username)
+            user_name varchar(255) NOT NULL,
+            user_surname varchar(255) NOT NULL,
+            user_username varchar(255) NOT NULL UNIQUE,
+            user_password varchar(255) NOT NULL,
+            user_role varchar(255) NOT NULL,
+            tied_to_teacher varchar(255),
+            temporary_password varchar(255),
+            PRIMARY KEY  (user_username)
         ) $charset_collate;";
     
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -85,5 +88,5 @@ function create_student_table() {
     }
 }
 
-register_activation_hook(__FILE__, 'create_student_table');
+register_activation_hook(__FILE__, 'create_user_table');
 ?>

@@ -28,34 +28,42 @@ if (isset($_SESSION['jwt_token'])) {
     exit();
 }
 
-$user_manager = new UserManager();
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_student'])) {
-    $name = sanitize_text_field($_POST['student_name']);
-    $surname = sanitize_text_field($_POST['student_surname']);
-    $credentials = $user_manager->insert_student_with_generated_credentials($name, $surname);
-    echo 'Student added successfully! Username: ' . $credentials['username'] . ' Password: ' . $credentials['password'];
-}
+$username = $decoded_token->data->username;
+$userType = $decoded_token->data->user_type;
 
+echo 'Current user: ' . $username . ' (' . $userType . ')';
+
+if ($userType == 'teacher') {
+    $user_manager = new UserManager();
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_student'])) {
+        $name = sanitize_text_field($_POST['user_name']);
+        $surname = sanitize_text_field($_POST['user_surname']);
+        $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'student', '', $username);
+        echo 'Student added successfully! Username: ' . $credentials['username'] . ' Password: ' . $credentials['password'];
+    }
+}
 ?>
 
 <h1>Dashboard</h1>
 
+<h2>Add Student</h2>
+<?php if ($userType == 'teacher'): ?>
 <!-- Add Student Form -->
 <form method="POST">
-    <label for="student_name">Student Name:</label>
-    <input type="text" id="student_name" name="student_name" required>
+    <label for="user_name">Student Name:</label>
+    <input type="text" id="user_name" name="user_name" required>
     <br>
-    <label for="student_surname">Student Surname:</label>
-    <input type="text" id="student_surname" name="student_surname" required>
+    <label for="user_surname">Student Surname:</label>
+    <input type="text" id="user_surname" name="user_surname" required>
     <br>
     <input type="submit" name="add_student" value="Add Student">
 </form>
+<?php endif; ?>
 
 <!-- Logout Button -->
 <form method="POST" action="<?php echo home_url('/itaiassistant101/logout'); ?>">
     <input type="submit" value="Logout">
 </form>
-
 
 <?php
 // Debug statement to check if the form is being submitted
