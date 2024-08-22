@@ -4,9 +4,12 @@ session_start();
 // Include the file containing the class
 require 'APIConnector.php';
 require 'UserManager.php';
+require 'DataEncryption.php';
 
 // Instantiate the class (no need for API key here)
 $api_connector = new ApiConnector('');
+$data_encryption = new Data_Encryption();
+$user_manager = new UserManager();
 
 // Check if the JWT token is set in the session
 if (isset($_SESSION['jwt_token'])) {
@@ -34,13 +37,31 @@ $userType = $decoded_token->data->user_type;
 echo 'Current user: ' . $username . ' (' . $userType . ')';
 
 if ($userType == 'teacher') {
-    $user_manager = new UserManager();
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_student'])) {
         $name = sanitize_text_field($_POST['user_name']);
         $surname = sanitize_text_field($_POST['user_surname']);
-        $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'student', '', $username);
+        $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'student', '', '', $username);
         echo 'Student added successfully! Username: ' . $credentials['username'] . ' Password: ' . $credentials['password'];
     }
+}
+
+$current_user = $user_manager->get_user_by_username($username);
+if ($userType == 'student') {
+    if ($current_user->temporary_password != '') {
+        echo 'You are a student and you need to change your password';
+        // Redirect to the change password page
+        wp_redirect(home_url('/itaiassistant101/ChangePassword'));
+        exit();
+    }
+    $teacher_user = $user_manager->get_user_by_username($current_user->tied_to_teacher);
+    echo 'Your teacher is: ' . $teacher_user->user_name;
+    $api_key = $data_encryption->decrypt($teacher_user->api_key);
+    echo 'Your api key is: ' . $api_key;
+}
+else {
+    echo 'You are a teacher';
+    $api_key = $data_encryption->decrypt($current_user->api_key);
+    echo 'Your api key is: ' . $api_key;
 }
 ?>
 

@@ -33,7 +33,7 @@ class UserManager {
         return $randomString;
     }
 
-    public function insert_user_with_generated_credentials($name, $surname, $role, $password, $tied_to_teacher='') {
+    public function insert_user_with_generated_credentials($name, $surname, $role, $password, $api_key='', $tied_to_teacher='') {
         global $wpdb;
         $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
     
@@ -57,7 +57,8 @@ class UserManager {
                 'user_password' => $hashed_password,
                 'user_role' => $role,
                 'tied_to_teacher' => $tied_to_teacher,
-                'temporary_password' => $temporary_password
+                'temporary_password' => $temporary_password,
+                'api_key' => $api_key
             )
         );
         
@@ -68,6 +69,24 @@ class UserManager {
         else {
             return array('username' => $username, 'user_role' => $role); // Return the credentials for display
         }
+    }
+
+    public function get_user_by_username($username) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE user_username = %s", $username));
+    }
+
+    public function update_password($username, $new_password) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
+        
+        $wpdb->update(
+            $table_name,
+            array('user_password' => $hashed_password, 'temporary_password' => ''),
+            array('user_username' => $username)
+        );
     }
 }
 

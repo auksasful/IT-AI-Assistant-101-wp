@@ -4,6 +4,7 @@ session_start();
 
 require 'APIConnector.php';
 require 'UserManager.php';
+require 'DataEncryption.php';
 
 // Debug statement to check the script execution
 error_log('login.php script executed');
@@ -19,10 +20,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $api_connector = new ApiConnector($api_key);
 
         $user_manager = new UserManager();
+
+        $data_encryption = new Data_Encryption();
+
+        $encrypted_api_key = $data_encryption->encrypt($api_key);
         $name = sanitize_text_field($_POST['user_name']);
         $surname = sanitize_text_field($_POST['user_surname']);
         $password = sanitize_text_field($_POST['password']);
-        $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'teacher', $password);
+        $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'teacher', $password, $encrypted_api_key, '');
         // echo 'Student added successfully! Username: ' . $credentials['username'] . ' Password: ' . $credentials['password'];
 
         // Call the method to test the connection and handle the result
@@ -43,7 +48,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             exit();
         }
     } elseif (isset($_POST['general_login'])) {
-        // TODO: Tie with teacher API key
         error_log('General login form submitted');
         $api_connector = new ApiConnector('');
         $username = sanitize_text_field($_POST['username']);
