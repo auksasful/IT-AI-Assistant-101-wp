@@ -88,6 +88,16 @@ class UserManager {
             array('user_username' => $username)
         );
     }
+
+    public function get_students_by_teacher($teacher_username) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM $table_name WHERE tied_to_teacher = %s OR user_username = %s", 
+            $teacher_username, 
+            $teacher_username
+        ));
+    }
 }
 
 ?>

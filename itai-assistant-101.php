@@ -13,6 +13,7 @@ function itaiassistant101_rewrite_rule() {
     add_rewrite_rule('^itaiassistant101/login/?', 'index.php?itaiassistant101_login=1', 'top');
     add_rewrite_rule('^itaiassistant101/logout/?', 'index.php?itaiassistant101_logout=1', 'top');
     add_rewrite_rule('^itaiassistant101/ChangePassword/?', 'index.php?itaiassistant101_ChangePassword=1', 'top');
+    add_rewrite_rule('^itaiassistant101/userlist/?', 'index.php?itaiassistant101_userlist=1', 'top');
 }
 add_action('init', 'itaiassistant101_rewrite_rule');
 
@@ -22,6 +23,7 @@ function itaiassistant101_query_vars($vars) {
     $vars[] = 'itaiassistant101_login';
     $vars[] = 'itaiassistant101_logout';
     $vars[] = 'itaiassistant101_ChangePassword';
+    $vars[] = 'itaiassistant101_userlist';
     return $vars;
 }
 add_filter('query_vars', 'itaiassistant101_query_vars');
@@ -36,6 +38,9 @@ function itaiassistant101_template_include($template) {
         return plugin_dir_path(__FILE__) . 'logout.php';
     } elseif (get_query_var('itaiassistant101_ChangePassword')) { // Add this block
         return plugin_dir_path(__FILE__) . 'ChangePassword.php';
+    }
+    elseif (get_query_var('itaiassistant101_userlist')) { // Add this block
+        return plugin_dir_path(__FILE__) . 'userlist.php';
     }
     return $template;
 }

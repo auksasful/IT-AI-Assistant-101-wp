@@ -86,6 +86,11 @@ else {
     <input type="submit" value="Logout">
 </form>
 
+<!-- Logout Button -->
+<form method="POST" action="<?php echo home_url('/itaiassistant101/userlist'); ?>">
+    <input type="submit" value="My class">
+</form>
+
 <?php
 // Debug statement to check if the form is being submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
