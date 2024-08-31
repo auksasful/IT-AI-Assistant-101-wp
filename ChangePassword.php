@@ -25,9 +25,9 @@ $username = $decoded_token->data->username;
 $userType = $decoded_token->data->user_type;
 $temporaryPassword = $decoded_token->data->temporary_password;
 
-if ($userType == 'student' && $temporaryPassword != '') {
+if ($temporaryPassword != '') {
     // Redirect to the dashboard
-    echo 'You are a student and you need to change your password';
+    echo 'You need to change your password';
 }
 
 

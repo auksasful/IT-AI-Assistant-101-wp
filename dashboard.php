@@ -36,27 +36,48 @@ $userType = $decoded_token->data->user_type;
 echo 'Current user: ' . $username . ' (' . $userType . ')';
 
 if ($userType == 'teacher') {
-    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_student'])) {
-        $name = sanitize_text_field($_POST['user_name']);
-        $surname = sanitize_text_field($_POST['user_surname']);
-        $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'student', '', '', $username);
-        echo 'Student added successfully! Username: ' . $credentials['username'] . ' Password: ' . $credentials['password'];
+    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        if (isset($_POST['add_student'])) {
+            $name = sanitize_text_field($_POST['student_name']);
+            $surname = sanitize_text_field($_POST['student_surname']);
+            $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'student', '', '', $username);
+            echo 'Student added successfully! Username: ' . $credentials['username'] . ' Password: ' . $credentials['password'];
+        }
+        elseif (isset($_POST['add_related_teacher'])) {
+            $name = sanitize_text_field($_POST['related_teacher_name']);
+            $surname = sanitize_text_field($_POST['related_teacher_surname']);
+            $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'teacher', '', '', $username);
+            echo 'Teacher added successfully! Username: ' . $credentials['username'] . ' Password: ' . $credentials['password'];
+        }
     }
 }
 
 $current_user = $user_manager->get_user_by_username($username);
+if ($current_user->temporary_password != '') {
+    echo 'You need to change your password';
+    // Redirect to the change password page
+    wp_redirect(home_url('/itaiassistant101/ChangePassword'));
+    exit();
+}
+
 if ($userType == 'student') {
-    if ($current_user->temporary_password != '') {
-        echo 'You are a student and you need to change your password';
-        // Redirect to the change password page
-        wp_redirect(home_url('/itaiassistant101/ChangePassword'));
-        exit();
-    }
     $teacher_user = $user_manager->get_user_by_username($current_user->tied_to_teacher);
-    echo 'Your teacher is: ' . $teacher_user->user_name;
+    echo 'Your teacher is: ' . $teacher_user->user_username;
     // $api_key = $data_encryption->decrypt($teacher_user->api_key);
     $api_key = $user_manager->decrypt($teacher_user->api_key);
     echo 'Your api key is: ' . $api_key;
+}
+elseif ($userType == 'teacher' && $current_user->api_key == '') {
+    if ($current_user->tied_to_teacher != '') {
+        $teacher_user = $user_manager->get_user_by_username($current_user->tied_to_teacher);
+        echo 'Your master teacher is: ' . $teacher_user->user_username;
+        // $api_key = $data_encryption->decrypt($teacher_user->api_key);
+        $api_key = $user_manager->decrypt($teacher_user->api_key);
+        echo 'Your api key is: ' . $api_key;
+    }
+    else {
+        echo 'You do not have any students';
+    }
 }
 else {
     echo 'You are a teacher';
@@ -68,18 +89,33 @@ else {
 
 <h1>Dashboard</h1>
 
-<h2>Add Student</h2>
 <?php if ($userType == 'teacher'): ?>
+<h2>Add Student</h2>
 <!-- Add Student Form -->
 <form method="POST">
-    <label for="user_name">Student Name:</label>
-    <input type="text" id="user_name" name="user_name" required>
+    <label for="student_name">Student Name:</label>
+    <input type="text" id="student_name" name="student_name" required>
     <br>
-    <label for="user_surname">Student Surname:</label>
-    <input type="text" id="user_surname" name="user_surname" required>
+    <label for="student_surname">Student Surname:</label>
+    <input type="text" id="student_surname" name="student_surname" required>
     <br>
     <input type="submit" name="add_student" value="Add Student">
 </form>
+<br>
+
+<?php elseif ($userType == 'teacher' && $current_user->api_key != ''): ?>
+<h2>Add Related Teacher</h2>
+<!-- Add Student Form -->
+<form method="POST">
+    <label for="related_teacher_name">Teacher Name:</label>
+    <input type="text" id="related_teacher_name" name="related_teacher_name" required>
+    <br>
+    <label for="related_teacher_surname">Teacher Surname:</label>
+    <input type="text" id="related_teacher_surname" name="related_teacher_surname" required>
+    <br>
+    <input type="submit" name="add_related_teacher" value="Add Related Teacher">
+</form>
+<br>
 <?php endif; ?>
 
 <!-- Logout Button -->

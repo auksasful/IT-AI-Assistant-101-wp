@@ -49,14 +49,14 @@ class UserManager {
         $hashed_password = password_hash($password, PASSWORD_BCRYPT);
         $temporary_password = '';
 
-        if ($role == 'student') {
+        if ($tied_to_teacher != '') {
             $temporary_password = $this->data_encryption->encrypt($password);
         }
 
         if ($api_key != '') {
             $api_key = $this->data_encryption->encrypt($api_key);
         }
-        
+
         $wpdb->insert(
             $table_name,
             array(
@@ -68,7 +68,7 @@ class UserManager {
                 'tied_to_teacher' => $tied_to_teacher,
                 'temporary_password' => $temporary_password,
                 'api_key' => $api_key
-            )
+                )
         );
         
         //if role is student then return with password, otherwise return without password

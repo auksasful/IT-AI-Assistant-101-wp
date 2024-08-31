@@ -25,7 +25,7 @@ if (isset($_SESSION['jwt_token'])) {
         echo '<table>';
         echo '<tr><th>Username</th><th>Name</th><th>Surname</th>';
         if ($userType == 'teacher') {
-            echo '<th>Temporary Password</th><th>Reset Password</th>';
+            echo '<th>Temporary Password</th><th>Reset Password</th><th>Application Key</th>';
         }
         echo '</tr>';
 
@@ -37,9 +37,10 @@ if (isset($_SESSION['jwt_token'])) {
             echo '<td>' . $user->user_username . '</td>';
             echo '<td>' . $user->user_name . '</td>';
             echo '<td>' . $user->user_surname . '</td>';
-            if ($userType == 'teacher' && $user->user_role != 'teacher') {
+            if ($userType == 'teacher' && ($user->user_role != 'teacher' || $user->tied_to_teacher == $current_user->user_username)) {
                 echo '<td>' . $user_manager->decrypt($user->temporary_password) . '</td>';
                 echo '<td><form method="POST" action="' . home_url('/itaiassistant101/HandleResetPassword') . '"><input type="hidden" name="student_username" value="' . $user->user_username  . '"><input type="submit" value="Reset Password"></form></td>';
+                echo '<td>' . $user_manager->decrypt($user->application_key) . '</td>';
             }
             echo '</tr>';
         }
