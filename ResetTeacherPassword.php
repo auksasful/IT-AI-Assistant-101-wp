@@ -15,10 +15,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         if (!$user) {
             echo 'Invalid API key.';
-            exit();
         }
 
         $user_manager->reset_password($user->user_username, $new_password);
+
+        wp_redirect(home_url('/itaiassistant101/login'));
+        exit();
     }
 }
 ?>

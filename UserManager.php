@@ -89,9 +89,21 @@ class UserManager {
     public function get_user_by_api_key($api_key) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
-        //decrypt the api key
-        $encrypted_api_key = $this->data_encryption->encrypt($api_key);
-        return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE api_key = %s", $encrypted_api_key));
+        
+        // Fetch all users from the database
+        $users = $wpdb->get_results("SELECT * FROM $table_name");
+        
+        foreach ($users as $user) {
+            // Decrypt the stored API key
+            $decrypted_api_key = $this->data_encryption->decrypt($user->api_key);
+            
+            // Compare the decrypted API key with the inputted API key
+            if ($decrypted_api_key === $api_key) {
+                return $user;
+            }
+        }
+        
+        return null;
     }
 
     public function update_password($username, $new_password) {
@@ -123,7 +135,10 @@ class UserManager {
         $password = $this->generate_random_password();
         $hashed_password = password_hash($password, PASSWORD_BCRYPT);
         $temporary_password = $this->data_encryption->encrypt($password);
-        
+        // error log all passwords:
+        error_log('Temporary password: ' . $password);
+        error_log('Hashed temporary password: ' . $hashed_password);
+        error_log('Encrypted temporary password: ' . $temporary_password);
         $wpdb->update(
             $table_name,
             array('user_password' => $hashed_password, 'temporary_password' => $temporary_password),
