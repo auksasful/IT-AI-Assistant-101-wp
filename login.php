@@ -4,7 +4,6 @@ session_start();
 
 require 'APIConnector.php';
 require 'UserManager.php';
-require 'DataEncryption.php';
 
 // Debug statement to check the script execution
 error_log('login.php script executed');
@@ -21,13 +20,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         $user_manager = new UserManager();
 
-        $data_encryption = new Data_Encryption();
-
-        $encrypted_api_key = $data_encryption->encrypt($api_key);
         $name = sanitize_text_field($_POST['user_name']);
         $surname = sanitize_text_field($_POST['user_surname']);
         $password = sanitize_text_field($_POST['password']);
-        $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'teacher', $password, $encrypted_api_key, '');
+        $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'teacher', $password, $api_key, '');
         // echo 'Student added successfully! Username: ' . $credentials['username'] . ' Password: ' . $credentials['password'];
 
         // Call the method to test the connection and handle the result
@@ -121,6 +117,11 @@ if (isset($_SESSION['jwt_token'])) {
     <br>
     <input type="submit" name="teacher_register" value="Register">
 </form>
+
+<form method="POST" action="<?php echo home_url('/itaiassistant101/ResetTeacherPassword'); ?>">
+    <input type="submit" value="Forgot password?">
+</form>
+
 
 <!--General Login Form -->
 <h2>Login</h2>

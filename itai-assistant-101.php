@@ -14,6 +14,9 @@ function itaiassistant101_rewrite_rule() {
     add_rewrite_rule('^itaiassistant101/logout/?', 'index.php?itaiassistant101_logout=1', 'top');
     add_rewrite_rule('^itaiassistant101/ChangePassword/?', 'index.php?itaiassistant101_ChangePassword=1', 'top');
     add_rewrite_rule('^itaiassistant101/userlist/?', 'index.php?itaiassistant101_userlist=1', 'top');
+    add_rewrite_rule('^itaiassistant101/HandleResetPassword/?', 'index.php?itaiassistant101_HandleResetPassword=1', 'top');
+    add_rewrite_rule('^itaiassistant101/ResetTeacherPassword/?', 'index.php?itaiassistant101_ResetTeacherPassword=1', 'top');
+
 }
 add_action('init', 'itaiassistant101_rewrite_rule');
 
@@ -24,6 +27,8 @@ function itaiassistant101_query_vars($vars) {
     $vars[] = 'itaiassistant101_logout';
     $vars[] = 'itaiassistant101_ChangePassword';
     $vars[] = 'itaiassistant101_userlist';
+    $vars[] = 'itaiassistant101_HandleResetPassword';
+    $vars[] = 'itaiassistant101_ResetTeacherPassword';
     return $vars;
 }
 add_filter('query_vars', 'itaiassistant101_query_vars');
@@ -34,13 +39,16 @@ function itaiassistant101_template_include($template) {
         return plugin_dir_path(__FILE__) . 'dashboard.php';
     } elseif (get_query_var('itaiassistant101_login')) {
         return plugin_dir_path(__FILE__) . 'login.php';
-    } elseif (get_query_var('itaiassistant101_logout')) { // Add this block
+    } elseif (get_query_var('itaiassistant101_logout')) {
         return plugin_dir_path(__FILE__) . 'logout.php';
-    } elseif (get_query_var('itaiassistant101_ChangePassword')) { // Add this block
+    } elseif (get_query_var('itaiassistant101_ChangePassword')) { 
         return plugin_dir_path(__FILE__) . 'ChangePassword.php';
-    }
-    elseif (get_query_var('itaiassistant101_userlist')) { // Add this block
+    } elseif (get_query_var('itaiassistant101_userlist')) { 
         return plugin_dir_path(__FILE__) . 'userlist.php';
+    } elseif (get_query_var('itaiassistant101_HandleResetPassword')) { 
+        return plugin_dir_path(__FILE__) . 'HandleResetPassword.php';
+    } elseif (get_query_var('itaiassistant101_ResetTeacherPassword')) { 
+        return plugin_dir_path(__FILE__) . 'ResetTeacherPassword.php';
     }
     return $template;
 }

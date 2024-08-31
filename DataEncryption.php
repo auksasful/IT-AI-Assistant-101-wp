@@ -1,6 +1,6 @@
 <?php
 
-class Data_Encryption {
+class ITAIAssistant_Data_Encryption {
 
 	private $key;
 	private $salt;

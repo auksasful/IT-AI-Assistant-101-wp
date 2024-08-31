@@ -2,10 +2,8 @@
 session_start();
 require 'APIConnector.php';
 require 'UserManager.php';
-require 'DataEncryption.php';
 
 $api_connector = new ApiConnector('');
-$data_encryption = new Data_Encryption();
 $user_manager = new UserManager();
 
 if (isset($_SESSION['jwt_token'])) {
@@ -40,8 +38,8 @@ if (isset($_SESSION['jwt_token'])) {
             echo '<td>' . $user->user_name . '</td>';
             echo '<td>' . $user->user_surname . '</td>';
             if ($userType == 'teacher') {
-                echo '<td>' . $user->temporary_password . '</td>';
-                echo '<td><form method="POST" action="reset_password.php"><input type="hidden" name="student_username" value="' . $user->username . '"><input type="submit" value="Reset Password"></form></td>';
+                echo '<td>' . $user_manager->decrypt($user->temporary_password) . '</td>';
+                echo '<td><form method="POST" action="' . home_url('/itaiassistant101/HandleResetPassword') . '"><input type="hidden" name="student_username" value="' . $user->username . '"><input type="submit" value="Reset Password"></form></td>';
             }
             echo '</tr>';
         }

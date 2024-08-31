@@ -4,11 +4,10 @@ session_start();
 // Include the file containing the class
 require 'APIConnector.php';
 require 'UserManager.php';
-require 'DataEncryption.php';
 
 // Instantiate the class (no need for API key here)
 $api_connector = new ApiConnector('');
-$data_encryption = new Data_Encryption();
+// $data_encryption = new ITAIAssistant_Data_Encryption();
 $user_manager = new UserManager();
 
 // Check if the JWT token is set in the session
@@ -55,12 +54,14 @@ if ($userType == 'student') {
     }
     $teacher_user = $user_manager->get_user_by_username($current_user->tied_to_teacher);
     echo 'Your teacher is: ' . $teacher_user->user_name;
-    $api_key = $data_encryption->decrypt($teacher_user->api_key);
+    // $api_key = $data_encryption->decrypt($teacher_user->api_key);
+    $api_key = $user_manager->decrypt($teacher_user->api_key);
     echo 'Your api key is: ' . $api_key;
 }
 else {
     echo 'You are a teacher';
-    $api_key = $data_encryption->decrypt($current_user->api_key);
+    // $api_key = $data_encryption->decrypt($current_user->api_key);
+    $api_key = $user_manager->decrypt($current_user->api_key);
     echo 'Your api key is: ' . $api_key;
 }
 ?>

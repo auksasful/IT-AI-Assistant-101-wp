@@ -1,11 +1,16 @@
 <?php
 
+require 'DataEncryption.php';
+
 class UserManager {
     private $db;
+    private $data_encryption;
+
 
     public function __construct() {
         global $wpdb;
         $this->db = $wpdb;
+        $this->data_encryption = new ITAIAssistant_Data_Encryption();
     }
 
     function generate_username($name, $surname) {
@@ -45,7 +50,11 @@ class UserManager {
         $temporary_password = '';
 
         if ($role == 'student') {
-            $temporary_password = $password;
+            $temporary_password = $this->data_encryption->encrypt($password);
+        }
+
+        if ($api_key != '') {
+            $api_key = $this->data_encryption->encrypt($api_key);
         }
         
         $wpdb->insert(
@@ -77,6 +86,14 @@ class UserManager {
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE user_username = %s", $username));
     }
 
+    public function get_user_by_api_key($api_key) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        //decrypt the api key
+        $encrypted_api_key = $this->data_encryption->encrypt($api_key);
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE api_key = %s", $encrypted_api_key));
+    }
+
     public function update_password($username, $new_password) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
@@ -98,6 +115,45 @@ class UserManager {
             $teacher_username
         ));
     }
+
+    // create temporary password for student
+    public function create_temporary_password($username) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        $password = $this->generate_random_password();
+        $hashed_password = password_hash($password, PASSWORD_BCRYPT);
+        $temporary_password = $this->data_encryption->encrypt($password);
+        
+        $wpdb->update(
+            $table_name,
+            array('user_password' => $hashed_password, 'temporary_password' => $temporary_password),
+            array('user_username' => $username)
+        );
+        
+        return $password;
+    }
+
+    // reset password for teacher, taking the username and password
+    public function reset_password($username, $password) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        $hashed_password = password_hash($password, PASSWORD_BCRYPT);
+        
+        $wpdb->update(
+            $table_name,
+            array('user_password' => $hashed_password, 'temporary_password' => ''),
+            array('user_username' => $username)
+        );
+    }
+
+    public function decrypt($encrypted_text) {
+        return $this->data_encryption->decrypt($encrypted_text);
+    }
+    
+    public function encrypt($text) {
+        return $this->data_encryption->encrypt($text);
+    }
+    
 }
 
 ?>
