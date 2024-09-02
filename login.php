@@ -2,6 +2,8 @@
 
 session_start();
 
+//TODO add login attempt cleaning hook
+
 require 'APIConnector.php';
 require 'UserManager.php';
 
@@ -10,24 +12,48 @@ error_log('login.php script executed');
 
 // Check if form is submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if (isset($_POST['teacher_register'])) {
+    $user_manager = new UserManager();
+    if (isset($_POST['form_register'])) {
         error_log('Form submitted');
         error_log('User Name: ' . $_POST['user_name']);
         error_log('User Surname: ' . $_POST['user_surname']);
         $api_key = $_POST['api_key'];
 
-        $api_connector = new ApiConnector($api_key);
-
-        $user_manager = new UserManager();
-
-        $name = sanitize_text_field($_POST['user_name']);
-        $surname = sanitize_text_field($_POST['user_surname']);
-        $password = sanitize_text_field($_POST['password']);
-        $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'teacher', $password, $api_key, '');
+        if($api_key){
+            $api_connector = new ApiConnector($api_key);
+            $name = sanitize_text_field($_POST['user_name']);
+            $surname = sanitize_text_field($_POST['user_surname']);
+            $password = sanitize_text_field($_POST['password']);
+            if(!$user_manager->is_api_key_new($api_key)){
+                echo 'API key already in use';
+                wp_redirect(home_url('/itaiassistant101/login'));
+                exit();
+            }
+            $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'teacher', $password, $api_key, '');
+            $jwt_token = $api_connector->test_connection($credentials['username'], $credentials['user_role'], true);
+            if(!$jwt_token){
+                echo 'Failed to connect to API';
+                $user_manager->delete_user($credentials['username']);
+                wp_redirect(home_url('/itaiassistant101/login'));
+                exit();
+            }
+        }
+        else {
+            $api_connector = new ApiConnector('');
+            $name = sanitize_text_field($_POST['user_name']);
+            $surname = sanitize_text_field($_POST['user_surname']);
+            $password = sanitize_text_field($_POST['password']);
+            if(!$user_manager->is_api_key_new($api_key)){
+                echo 'API key already in use';
+                wp_redirect(home_url('/itaiassistant101/login'));
+                exit();
+            }
+            $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'student', $password, $api_key, '');
+            $jwt_token = $api_connector->test_connection($credentials['username'], $credentials['user_role'], false);
+        }
         // echo 'Student added successfully! Username: ' . $credentials['username'] . ' Password: ' . $credentials['password'];
 
         // Call the method to test the connection and handle the result
-        $jwt_token = $api_connector->test_connection($credentials['username'], $credentials['user_role'], true);
 
         if ($jwt_token) {
             // Store the JWT token in a session
@@ -38,6 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             wp_redirect(home_url('/itaiassistant101/dashboard'));
             exit();
         } else {
+            $user_manager->delete_user($credentials['username']);
             // Redirect to the login page
             error_log('Redirecting to login (invalid token)');
             wp_redirect(home_url('/itaiassistant101/login'));
@@ -48,6 +75,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $api_connector = new ApiConnector('');
         $username = sanitize_text_field($_POST['username']);
         $password = sanitize_text_field($_POST['password']);
+
+        $login_attempts = $user_manager->track_login_attempt($username);
+        if($login_attempts > 10){
+            echo 'Too many login attempts, wait 10 minutes';
+            wp_redirect(home_url('/itaiassistant101/login'));
+            exit();
+        }
 
         global $wpdb;
         $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
@@ -100,11 +134,11 @@ if (isset($_SESSION['jwt_token'])) {
 ?>
 <h1>Login</h1>
 
-<!-- Teacher Register Form -->
-<h2>Register Teacher</h2>
+<!-- Teacher Form -->
+<h2>Register</h2>
 <form method="POST">
-    <label for="api_key">API Key:</label>
-    <input type="text" id="api_key" name="api_key" required>
+    <label for="api_key">API Key (For Teacher Registration):</label>
+    <input type="text" id="api_key" name="api_key">
     <br>
     <label for="user_name">Name:</label>
     <input type="text" id="user_name" name="user_name" required>
@@ -115,7 +149,7 @@ if (isset($_SESSION['jwt_token'])) {
     <label for="password">Password:</label>
     <input type="password" id="password" name="password" required>
     <br>
-    <input type="submit" name="teacher_register" value="Register">
+    <input type="submit" name="form_register" value="Register">
 </form>
 
 <form method="POST" action="<?php echo home_url('/itaiassistant101/ResetTeacherPassword'); ?>">

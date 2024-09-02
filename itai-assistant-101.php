@@ -94,6 +94,7 @@ function create_user_table() {
             tied_to_teacher varchar(255),
             temporary_password varchar(255),
             api_key varchar(255),
+            tied_request varchar(255),
             PRIMARY KEY  (user_username)
         ) $charset_collate;";
     
@@ -106,5 +107,34 @@ function create_user_table() {
     }
 }
 
+//create login attempts table
+function create_login_attempts_table() {
+    error_log('create_login_attempts_table called'); // Debug statement
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'it_ai_assistant101_login_attempts';
+    $trigger_name = $wpdb->prefix . 'it_ai_assistant101_delete_old_login_attempts';
+    
+    
+    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        $charset_collate = $wpdb->get_charset_collate();
+    
+        $sql = "CREATE TABLE $table_name (
+            attempt_id int(11) NOT NULL AUTO_INCREMENT,
+            user_username varchar(255) NOT NULL,
+            attempt_time datetime NOT NULL,
+            PRIMARY KEY  (attempt_id)
+        ) $charset_collate;";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+        error_log('Table created: ' . $table_name); // Debug statement        
+    } 
+    else {
+        error_log('Table already exists: ' . $table_name); // Debug statement
+    }
+}
+
+
 register_activation_hook(__FILE__, 'create_user_table');
+register_activation_hook(__FILE__, 'create_login_attempts_table');
 ?>

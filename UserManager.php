@@ -80,6 +80,51 @@ class UserManager {
         }
     }
 
+    //delete user by username
+    public function delete_user($username) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        $wpdb->delete($table_name, array('user_username' => $username));
+    }
+
+    //Make user a teacher with tied_to_teacher field
+    public function make_teacher($username, $teacher_username) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        $wpdb->update(
+            $table_name,
+            array('user_role' => 'teacher', 'tied_to_teacher' => $teacher_username),
+            array('user_username' => $username)
+        );
+    }
+
+    //Make user a student with tied_to_teacher field
+    public function make_student($username) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        $wpdb->update(
+            $table_name,
+            array('user_role' => 'student'),
+            array('user_username' => $username)
+        );
+    }
+
+    public function track_login_attempt($username) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_login_attempts';
+        $wpdb->insert(
+            $table_name,
+            array(
+                'user_username' => $username,
+                'attempt_time' => current_time('mysql')
+            )
+        );
+
+        $attempts_count = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_name WHERE user_username = %s AND attempt_time > DATE_SUB(NOW(), INTERVAL 10 MINUTE)", $username));
+        return $attempts_count;
+    }
+
+
     public function get_user_by_username($username) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
@@ -122,8 +167,9 @@ class UserManager {
         global $wpdb;
         $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $table_name WHERE tied_to_teacher = %s OR user_username = %s", 
-            $teacher_username, 
+            "SELECT * FROM $table_name WHERE tied_to_teacher = %s OR user_username = %s OR tied_request = %s", 
+            $teacher_username,
+            $teacher_username,
             $teacher_username
         ));
     }
@@ -159,6 +205,68 @@ class UserManager {
             array('user_password' => $hashed_password, 'temporary_password' => ''),
             array('user_username' => $username)
         );
+    }
+
+    public function update_user_api_key($username, $api_key) {
+        if(!$this->is_api_key_new($api_key)){
+            return false;
+        }
+        $api_connector = new ApiConnector($api_key);
+        if ($api_connector->test_connection($username, 'teacher', true)) {
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+            $encrypted_api_key = $this->data_encryption->encrypt($api_key);
+            
+            $wpdb->update(
+                $table_name,
+                array('api_key' => $encrypted_api_key),
+                array('user_username' => $username)
+            );
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    //check if someone uses the api key already
+    public function is_api_key_new($api_key) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        $users = $wpdb->get_results("SELECT * FROM $table_name");
+        foreach ($users as $user) {
+            $decrypted_api_key = $this->data_encryption->decrypt($user->api_key);
+            if ($decrypted_api_key === $api_key) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public function update_user_tied_request($username, $teacher_username, $assign) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+
+        if($assign){
+            $wpdb->update(
+                $table_name,
+                array('tied_request' => $teacher_username),
+                array('user_username' => $username)
+            );
+        }
+        else{
+            $wpdb->update(
+                $table_name,
+                array('tied_request' => '', 'tied_to_teacher' => $teacher_username),
+                array('user_username' => $username)
+            );
+        }
+    }
+
+    //Get tied requests count to current teacher
+    public function get_tied_requests_count($teacher_username) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        return $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_name WHERE tied_request = %s", $teacher_username));
     }
 
     public function decrypt($encrypted_text) {
