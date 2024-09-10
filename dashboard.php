@@ -190,6 +190,10 @@ else {
 
 <?php endif; ?>
 
+<form method="POST" action="<?php echo home_url('/itaiassistant101/ClassList'); ?>">
+    <input type="submit" value="My classes">
+</form>
+
 <?php
 // Debug statement to check if the form is being submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {

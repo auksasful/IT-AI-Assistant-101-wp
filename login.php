@@ -2,7 +2,7 @@
 
 session_start();
 
-//TODO add login attempt cleaning hook
+//TODO make logic of default class when the teacher is created and where all their students are added
 
 require 'APIConnector.php';
 require 'UserManager.php';
@@ -76,13 +76,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $username = sanitize_text_field($_POST['username']);
         $password = sanitize_text_field($_POST['password']);
 
-        $login_attempts = $user_manager->track_login_attempt($username);
-        if($login_attempts > 10){
-            echo 'Too many login attempts, wait 10 minutes';
-            wp_redirect(home_url('/itaiassistant101/login'));
-            exit();
-        }
-
         global $wpdb;
         $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
         $user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE user_username = %s", $username));
@@ -107,6 +100,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         } else {
             error_log('Invalid username or password');
             echo 'Invalid username or password';
+                
+            $login_attempts = $user_manager->track_login_attempt($username);
+            if($login_attempts > 10){
+                echo 'Too many login attempts, wait 10 minutes';
+                wp_redirect(home_url('/itaiassistant101/login'));
+                exit();
+            }
         }
     }
 }
