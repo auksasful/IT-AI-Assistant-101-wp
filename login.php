@@ -3,6 +3,7 @@
 session_start();
 
 //TODO make logic of default class when the teacher is created and where all their students are added
+//TODO tie class with teacher's API key
 
 require 'APIConnector.php';
 require 'UserManager.php';
