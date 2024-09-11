@@ -67,15 +67,15 @@ $class_users = $classManager->get_classes_by_username($username); // Replace wit
         <?php foreach ($class_users as $class): ?>
             <li>
                 <?php echo htmlspecialchars($class->class_name); ?> - <?php echo htmlspecialchars($class->class_main_teacher); ?>
-                <?php if ($userType == 'teacher'): ?>
                 <form method="post" style="display:inline;">
-                    <input type="hidden" name="class_id" value="<?php echo $class->class_id; ?>">
-                    <button type="submit" name="delete_class">Delete</button>
-                    <input type="text" id="new_class_name" name="new_class_name">
-                    <button type="submit" name="rename_class">Rename</button>
+                    <?php if ($userType == 'teacher'): ?>
+                        <input type="hidden" name="class_id" value="<?php echo $class->class_id; ?>">
+                        <button type="submit" name="delete_class">Delete</button>
+                        <input type="text" id="new_class_name" name="new_class_name">
+                        <button type="submit" name="rename_class">Rename</button>
+                    <?php endif; ?>
                     <a href="<?php echo home_url('/itaiassistant101/ClassUserList?class_id=' . $class->class_id); ?>">View Users</a>
                 </form>
-                <?php endif; ?>
             </li>
         <?php endforeach; ?>
     </ul>

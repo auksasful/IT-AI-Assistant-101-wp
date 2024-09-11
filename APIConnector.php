@@ -1,11 +1,13 @@
 <?php
 require 'vendor/autoload.php';
+require 'ClassManager.php';
 use \Firebase\JWT\JWT;
 use \Firebase\JWT\Key;
 
 class ApiConnector {
     private $api_key;
     private $secret_key;
+    private $class_manager;
 
     public function __construct($api_key) {
         $this->api_key = $api_key;
@@ -13,6 +15,7 @@ class ApiConnector {
         if (!$this->secret_key) {
             throw new Exception('JWT_SECRET_KEY environment variable is not set.');
         }
+        $this->class_manager = new ClassManager();
     }
 
     public function test_connection($username, $user_type, $register_request) {
@@ -43,6 +46,7 @@ class ApiConnector {
             $response_data = json_decode($response, true);
 
             if (isset($response_data['total']) && $response_data['total'] == 1) {
+                $this->class_manager->insert_class($username . "'s class", $username, true);
                 return $this->generate_jwt($username, $user_type);
             } elseif (isset($response_data['error']['type']) && $response_data['error']['type'] == 'invalid_api_key') {
                 return false;
@@ -79,6 +83,10 @@ class ApiConnector {
         } catch (Exception $e) {
             return false;
         }
+    }
+
+    public function get_class_api_key($class_id) {
+        return $this->class_manager->get_class_API_key($class_id);
     }
 }
 ?>

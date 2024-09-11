@@ -6,7 +6,6 @@ class UserManager {
     private $db;
     private $data_encryption;
 
-
     public function __construct() {
         global $wpdb;
         $this->db = $wpdb;
@@ -151,6 +150,15 @@ class UserManager {
         return null;
     }
 
+    public function get_class_API_key($class_id) {
+        $table_name = $this->db->prefix . 'it_ai_assistant101_class';
+        //get class_main_teacher based on class_id
+        $class_main_teacher = $this->db->get_var($this->db->prepare("SELECT class_main_teacher FROM $table_name WHERE class_id = %d", $class_id));
+        $table_name = $this->db->prefix . 'it_ai_assistant101_user';
+        $user = $this->db->get_row($this->db->prepare("SELECT * FROM $table_name WHERE user_username = %s", $class_main_teacher));
+        return $this->decrypt($user->api_key);
+    }
+
     public function update_password($username, $new_password) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
@@ -258,6 +266,26 @@ class UserManager {
                 $table_name,
                 array('tied_request' => '', 'tied_to_teacher' => $teacher_username),
                 array('user_username' => $username)
+            );
+
+            $teacher_user = $this->get_user_by_username($teacher_username);
+            var_dump($teacher_user);
+            error_log('Teacher user default class id: ' . $teacher_user->default_class_id);
+            $table_name = $this->db->prefix . 'it_ai_assistant101_class_user';
+            // check if not exists
+            $class_user_count = $this->db->get_var($this->db->prepare("SELECT COUNT(*) FROM $table_name WHERE class_id = %d AND user_username = %s", $teacher_user->default_class_id, $username));
+            if($class_user_count > 0) {
+                error_log('User already in class ' . $username);
+                return;
+            }
+            error_log('Adding user to class ' . $username);
+
+            $this->db->insert(
+                $table_name,
+                array(
+                    'class_id' => $teacher_user->default_class_id,
+                    'user_username' => $username
+                )
             );
         }
     }

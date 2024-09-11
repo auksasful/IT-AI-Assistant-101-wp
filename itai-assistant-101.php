@@ -102,6 +102,8 @@ function create_user_table() {
             temporary_password varchar(255),
             api_key varchar(255),
             tied_request varchar(255),
+            default_class_id int(11),
+            last_used_class_id int(11),
             PRIMARY KEY  (user_username)
         ) $charset_collate;";
     

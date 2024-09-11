@@ -22,6 +22,8 @@ if (isset($_SESSION['jwt_token'])) {
             wp_redirect(home_url('/itaiassistant101/dashboard'));
             exit();
         }
+        $classManager->set_last_used_class_id($username, $class_id);
+        echo 'API key: ' . $user_manager->get_class_API_key($class_id);
     } 
     else {
         wp_redirect(home_url('/itaiassistant101/login'));

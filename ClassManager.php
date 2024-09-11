@@ -3,13 +3,12 @@
 class ClassManager {
     private $db;
 
-
     public function __construct() {
         global $wpdb;
         $this->db = $wpdb;
     }
 
-    public function insert_class($class_name, $class_main_teacher) {
+    public function insert_class($class_name, $class_main_teacher, $default_class = false) {
         $table_name = $this->db->prefix . 'it_ai_assistant101_class';
         $class_creation_date = date('Y-m-d H:i:s');
         $this->db->insert(
@@ -23,6 +22,9 @@ class ClassManager {
         //get the last inseted entry and it's field class_id value
         $class_id = $this->db->insert_id;
         $this->insert_class_user($class_id, $class_main_teacher);
+        if($default_class) {
+            $this->set_default_class($class_main_teacher, $class_id);
+        }
     }
 
     public function insert_class_user($class_id, $user_username) {
@@ -87,5 +89,22 @@ class ClassManager {
         );
     }
 
+    public function set_default_class($user_username, $class_id) {
+        $table_name = $this->db->prefix . 'it_ai_assistant101_user';
+        $this->db->update(
+            $table_name,
+            array('default_class_id' => $class_id, 'last_used_class_id' => $class_id),
+            array('user_username' => $user_username)
+        );
+    }
+
+    public function set_last_used_class_id($user_username, $class_id) {
+        $table_name = $this->db->prefix . 'it_ai_assistant101_user';
+        $this->db->update(
+            $table_name,
+            array('last_used_class_id' => $class_id),
+            array('user_username' => $user_username)
+        );
+    }
 }
 ?>
