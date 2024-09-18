@@ -62,6 +62,6 @@ new_chat_button.addEventListener("click", function() {
 
 document.querySelectorAll(".conversation-button").forEach(button => {
     button.addEventListener("click", function() {
-        location.href = base_uri + "index.php?chat_id=" + button.getAttribute("data-id");
+        location.href = wp_rules_uri + "index.php?chat_id=" + button.getAttribute("data-id");
     })
 });

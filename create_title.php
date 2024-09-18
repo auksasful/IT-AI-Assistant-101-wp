@@ -11,6 +11,10 @@
  * @return string Title from ChatGPT
  */
 
+header('Content-Type: text/event-stream');
+header('Cache-Control: no-cache');
+header('Connection: keep-alive');
+
 function chatgpt_create_title(
     string $question,
     string $answer,
@@ -49,5 +53,8 @@ if( $conversation ) {
 
     echo $title;
 } else {
+    // echo "ERROR";
     throw new \Exception( "Unable to create title" );
 }
+
+flush();   

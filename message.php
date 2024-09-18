@@ -1,5 +1,7 @@
 <?php
-header( "Cache-Control: no-cache" );
+header('Content-Type: text/event-stream');
+header('Cache-Control: no-cache');
+header('Connection: keep-alive');
 if( ob_get_level() ) ob_end_clean();
 
 $settings = require( __DIR__ . "/settings.php" );
@@ -62,6 +64,9 @@ if( isset( $_POST['message'] ) ) {
         content: $_POST['message'],
     );
 
+    //error log the message
+    error_log( "GPT message before req:".$_POST['message'] );
+
     $wants_to_run_code = (
         $code_interpreter_enabled &&
         $last_message &&
@@ -122,25 +127,35 @@ try {
     if( isset( $settings['params'] ) ) {
         $chatgpt->set_params( $settings['params'] );
     }
+    // $context = $conversation->get_messages();
+    error_log("Context count".count( $context ) );
+    // error log messages as json content
+    error_log( json_encode( $context) );
+
 
     foreach( $context as $message ) {
-        switch( $message->role ) {
+        $message_json = json_encode($message);
+        $message_obj = json_decode($message_json);
+    
+        error_log("message content and role:".$message_json);
+    
+        switch( $message_obj->role ) {
             case "user":
-                $chatgpt->umessage( $message->content );
+                $chatgpt->umessage( $message_obj->content );
                 break;
             case "assistant":
-                $chatgpt->amessage( $message->content );
+                $chatgpt->amessage( $message_obj->content );
                 break;
             case "function_call":
                 $chatgpt->amessage(
                     tool_calls: [
                         (object) [
                             // TODO: Add support for real function ID
-                            "id" => $message->function_name,
+                            "id" => $message_obj->function_name,
                             "type" => "function",
                             "function" => (object) [
-                                "name" => $message->function_name,
-                                "arguments" => $message->function_arguments,
+                                "name" => $message_obj->function_name,
+                                "arguments" => $message_obj->function_arguments,
                             ]
                         ]
                     ]
@@ -149,13 +164,13 @@ try {
             case "function": // Backward compatibility
             case "tool":
                 // TODO: Add support for real function ID
-                $chatgpt->fresult( $message->function_name, $message->content );
+                $chatgpt->fresult( $message_obj->function_name, $message_obj->content );
                 break;
             case "system":
-                $chatgpt->smessage( $message->content );
+                $chatgpt->smessage( $message_obj->content );
                 break;
         }
-    }
+    }    
 
     if( $code_interpreter_enabled ) {
         $last_message = $context[count( $context ) - 1] ?? null;

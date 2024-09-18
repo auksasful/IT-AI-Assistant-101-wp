@@ -228,7 +228,7 @@ class ChatGPT {
             "model" => $this->model,
             "messages" => $this->messages,
         ];
-
+        error_log("GPT params: " . json_encode($params, JSON_PRETTY_PRINT));
         $params = array_merge( $params, $this->params );
 
         $functions = $this->get_functions();
@@ -312,7 +312,6 @@ class ChatGPT {
         $message = end( $this->messages );
 
         $message = $this->handle_functions( $message, $raw_function_response, stream_type: $stream_type );
-
         return $message;
     }
 
@@ -324,6 +323,8 @@ class ChatGPT {
     protected function parse_stream_data( CurlHandle $ch, string $data, StreamType $stream_type, string &$partial_data, array &$functions ): string {
         $json = json_decode( $data );
 
+        error_log( "ChatGPT json from stream: " . $data );
+
         if( isset( $json->error ) ) {
             $error  = $json->error->message;
             $error .= " (" . $json->error->code . ")";
@@ -331,6 +332,7 @@ class ChatGPT {
 
             if( $stream_type == StreamType::Event ) {
                 echo "data: " . json_encode( ["content" => $error] ) . "\n\n";
+                error_log( "Stopping stream due to error: " . $error );
 
                 echo "event: stop\n";
                 echo "data: stopped\n\n";
@@ -415,7 +417,7 @@ class ChatGPT {
             }
 
             $response_text .= $content;
-
+            error_log( "ChatGPT Response: " . $content );
             if( $stream_type == StreamType::Event ) {
                 echo "data: " . json_encode( ["content" => $content] ) . "\n\n";
             } elseif( $stream_type == StreamType::Plain ) {

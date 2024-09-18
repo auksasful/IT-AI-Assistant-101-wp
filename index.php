@@ -22,6 +22,12 @@ if( $base_uri != "" ) {
     $base_uri = rtrim( $base_uri, "/" ) . "/";
 }
 
+$wp_rules_uri = $settings['wp_rules_uri'] ?? "";
+
+if( $wp_rules_uri != "" ) {
+    $wp_rules_uri = rtrim( $wp_rules_uri, "/" ) . "/";
+}
+
 $speech_enabled = ( $settings['speech_enabled'] ?? false ) === true;
 
 $current_model = $conversation?->get_model() ?? $settings['model'];
@@ -62,6 +68,7 @@ $current_mode_name = $mode_names[$current_mode];
     <title>ChatWTF</title>
     <script>
         let base_uri = '<?php echo $base_uri; ?>';
+        let wp_rules_uri = '<?php echo $wp_rules_uri; ?>';
         let chat_id = <?php echo intval( $chat_id ); ?>;
         let new_chat = <?php echo $new_chat ? "true" : "false"; ?>;
         let speech_enabled = <?php echo $speech_enabled ? "true" : "false"; ?>;

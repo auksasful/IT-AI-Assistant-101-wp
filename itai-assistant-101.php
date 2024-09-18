@@ -19,6 +19,8 @@ function itaiassistant101_rewrite_rule() {
     add_rewrite_rule('^itaiassistant101/ClassList/?', 'index.php?itaiassistant101_ClassList=1', 'top');
     add_rewrite_rule('^itaiassistant101/ClassUserList/?', 'index.php?itaiassistant101_ClassUserList=1', 'top');
     add_rewrite_rule('^itaiassistant101/index/?', 'index.php?itaiassistant101_index=1', 'top');
+    add_rewrite_rule('^itaiassistant101/create_title/?', 'index.php?itaiassistant101_create_title=1', 'top');
+    add_rewrite_rule('^itaiassistant101/message/?', 'index.php?itaiassistant101_message=1', 'top');
 }
 add_action('init', 'itaiassistant101_rewrite_rule');
 
@@ -34,6 +36,8 @@ function itaiassistant101_query_vars($vars) {
     $vars[] = 'itaiassistant101_ClassList';
     $vars[] = 'itaiassistant101_ClassUserList';
     $vars[] = 'itaiassistant101_index';
+    $vars[] = 'itaiassistant101_create_title';
+    $vars[] = 'itaiassistant101_message';
     return $vars;
 }
 add_filter('query_vars', 'itaiassistant101_query_vars');
@@ -60,6 +64,10 @@ function itaiassistant101_template_include($template) {
         return plugin_dir_path(__FILE__) . 'ClassUserList.php';
     } elseif (get_query_var('itaiassistant101_index')) { 
         return plugin_dir_path(__FILE__) . 'index.php';
+    } elseif (get_query_var('itaiassistant101_create_title')) { 
+        return plugin_dir_path(__FILE__) . 'create_title.php';
+    } elseif (get_query_var('itaiassistant101_message')) { 
+        return plugin_dir_path(__FILE__) . 'message.php';
     }
     return $template;
 }
@@ -292,13 +300,17 @@ register_deactivation_hook(__FILE__, 'unschedule_delete_old_login_attempts');
 
 
 function itaiassistant101_enqueue_styles() {
-    wp_enqueue_style('itaiassistant101-style', plugin_dir_url(__FILE__) . 'assets/css/style.css');
+    if (get_query_var('itaiassistant101_index')) {
+        wp_enqueue_style('itaiassistant101-style', plugin_dir_url(__FILE__) . 'assets/css/style.css?time='.time());
+    }
 }
 add_action('wp_enqueue_scripts', 'itaiassistant101_enqueue_styles');
 
 function itaiassistant101_enqueue_scripts() {
-    wp_enqueue_script('itaiassistant101-ui-script', plugin_dir_url(__FILE__) . 'assets/js/ui-script.js', array('jquery'), null, true);
-    wp_enqueue_script('itaiassistant101-script', plugin_dir_url(__FILE__) . 'assets/js/script.js', array('jquery'), null, true);
+    if (get_query_var('itaiassistant101_index')) {
+        wp_enqueue_script('itaiassistant101-ui-script', plugin_dir_url(__FILE__) . 'assets/js/ui-script.js?time='.time(), array('jquery'), null, true);
+        wp_enqueue_script('itaiassistant101-script', plugin_dir_url(__FILE__) . 'assets/js/script.js?time='.time(), array('jquery'), null, true);
+    }
 }
 add_action('wp_enqueue_scripts', 'itaiassistant101_enqueue_scripts');
 

@@ -75,7 +75,7 @@ function create_title( question, answer, title_link, chat_id ) {
     data.append('answer', answer);
     data.append('chat_id', chat_id);
 
-    fetch( base_uri + "create_title.php", {
+    fetch( wp_rules_uri + "create_title.php", {
         method: 'POST',
         body: data
     })
@@ -145,7 +145,7 @@ async function send_message( message_text ) {
     data.append( "message", message_text );
 
     // send message and get chat id
-    chat_id = await fetch( base_uri + "message.php", {
+    chat_id = await fetch( wp_rules_uri + "message.php", {
         method: "POST",
         body: data
     } ).then((response) => {
@@ -154,7 +154,7 @@ async function send_message( message_text ) {
 
     // listen for response tokens
     const eventSource = new EventSource(
-        base_uri + "message.php?chat_id=" + chat_id + "&model=" + chatgpt_model + "&mode=" + selected_mode
+        wp_rules_uri + "message.php?chat_id=" + chat_id + "&model=" + chatgpt_model + "&mode=" + selected_mode
     );
 
     // handle errors
