@@ -2,8 +2,8 @@
 
 session_start();
 
-require 'APIConnector.php';
-require 'UserManager.php';
+require_once 'APIConnector.php';
+require_once 'UserManager.php';
 
 // Debug statement to check the script execution
 error_log('login.php script executed');

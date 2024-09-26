@@ -1,7 +1,7 @@
 <?php
 session_start();
-require 'UserManager.php';
-require 'APIConnector.php';
+require_once 'UserManager.php';
+require_once 'APIConnector.php';
 
 $api_connector = new ApiConnector('');
 

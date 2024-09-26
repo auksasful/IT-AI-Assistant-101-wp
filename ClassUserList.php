@@ -1,6 +1,6 @@
 <?php
 session_start();
-require 'APIConnector.php';
+require_once 'APIConnector.php';
 require_once 'ClassManager.php';
 require_once 'UserManager.php';
 

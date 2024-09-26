@@ -1,7 +1,7 @@
 <?php
 session_start();
-require 'APIConnector.php';
-require 'UserManager.php';
+require_once 'APIConnector.php';
+require_once 'UserManager.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['reset_password'])) {

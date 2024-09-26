@@ -2,8 +2,8 @@
 session_start();
 
 // Include the file containing the class
-require 'APIConnector.php';
-require 'UserManager.php';
+require_once 'APIConnector.php';
+require_once 'UserManager.php';
 
 // Instantiate the class (no need for API key here)
 $api_connector = new ApiConnector('');

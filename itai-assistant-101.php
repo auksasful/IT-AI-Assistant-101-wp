@@ -18,6 +18,9 @@ function itaiassistant101_rewrite_rule() {
     add_rewrite_rule('^itaiassistant101/ResetTeacherPassword/?', 'index.php?itaiassistant101_ResetTeacherPassword=1', 'top');
     add_rewrite_rule('^itaiassistant101/ClassList/?', 'index.php?itaiassistant101_ClassList=1', 'top');
     add_rewrite_rule('^itaiassistant101/ClassUserList/?', 'index.php?itaiassistant101_ClassUserList=1', 'top');
+    add_rewrite_rule('^itaiassistant101/index/?', 'index.php?itaiassistant101_index=1', 'top');
+    add_rewrite_rule('^itaiassistant101/create_title/?', 'index.php?itaiassistant101_create_title=1', 'top');
+    add_rewrite_rule('^itaiassistant101/message/?', 'index.php?itaiassistant101_message=1', 'top');
 }
 add_action('init', 'itaiassistant101_rewrite_rule');
 
@@ -32,6 +35,9 @@ function itaiassistant101_query_vars($vars) {
     $vars[] = 'itaiassistant101_ResetTeacherPassword';
     $vars[] = 'itaiassistant101_ClassList';
     $vars[] = 'itaiassistant101_ClassUserList';
+    $vars[] = 'itaiassistant101_index';
+    $vars[] = 'itaiassistant101_create_title';
+    $vars[] = 'itaiassistant101_message';
     return $vars;
 }
 add_filter('query_vars', 'itaiassistant101_query_vars');
@@ -56,6 +62,12 @@ function itaiassistant101_template_include($template) {
         return plugin_dir_path(__FILE__) . 'ClassList.php';
     } elseif (get_query_var('itaiassistant101_ClassUserList')) { 
         return plugin_dir_path(__FILE__) . 'ClassUserList.php';
+    } elseif (get_query_var('itaiassistant101_index')) { 
+        return plugin_dir_path(__FILE__) . 'index.php';
+    } elseif (get_query_var('itaiassistant101_create_title')) { 
+        return plugin_dir_path(__FILE__) . 'create_title.php';
+    } elseif (get_query_var('itaiassistant101_message')) { 
+        return plugin_dir_path(__FILE__) . 'message.php';
     }
     return $template;
 }
@@ -195,12 +207,66 @@ function create_class_table() {
     }
 }
 
+function create_conversations_table() {
+    error_log('create_conversations_table called'); // Debug statement
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'it_ai_assistant101_conversations';
+    
+    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        $charset_collate = $wpdb->get_charset_collate();
+    
+        $sql = "CREATE TABLE $table_name (
+            id int(11) NOT NULL AUTO_INCREMENT,
+            title varchar(64) NOT NULL,
+            model varchar(64) NOT NULL,
+            mode varchar(16) NOT NULL,
+            PRIMARY KEY  (id)
+        ) $charset_collate;";
+    
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+        error_log('Table created: ' . $table_name); // Debug statement
+    } 
+    else {
+        error_log('Table already exists: ' . $table_name); // Debug statement
+    }
+}
+
+function create_messages_table() {
+    error_log('create_messages_table called'); // Debug statement
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'it_ai_assistant101_messages';
+    
+    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        $charset_collate = $wpdb->get_charset_collate();
+    
+        $sql = "CREATE TABLE $table_name (
+            id int(11) NOT NULL AUTO_INCREMENT,
+            conversation_id int(11) NOT NULL,
+            user_username varchar(255) NOT NULL,
+            message_text text NOT NULL,
+            message_time datetime NOT NULL,
+            PRIMARY KEY  (id),
+            FOREIGN KEY (conversation_id) REFERENCES {$wpdb->prefix}it_ai_assistant101_conversations(id),
+            FOREIGN KEY (user_username) REFERENCES {$wpdb->prefix}it_ai_assistant101_user(user_username)
+        ) $charset_collate;";
+    
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+        error_log('Table created: ' . $table_name); // Debug statement
+    } 
+    else {
+        error_log('Table already exists: ' . $table_name); // Debug statement
+    }
+}
 
 
 register_activation_hook(__FILE__, 'create_user_table');
 register_activation_hook(__FILE__, 'create_class_table');
 register_activation_hook(__FILE__, 'create_class_user_table');
 register_activation_hook(__FILE__, 'create_login_attempts_table');
+register_activation_hook(__FILE__, 'create_conversations_table');
+register_activation_hook(__FILE__, 'create_messages_table');
 
 // Schedule the event on plugin activation
 function schedule_delete_old_login_attempts() {
@@ -231,4 +297,23 @@ function unschedule_delete_old_login_attempts() {
     wp_unschedule_event($timestamp, 'delete_old_login_attempts_event');
 }
 register_deactivation_hook(__FILE__, 'unschedule_delete_old_login_attempts');
+
+
+function itaiassistant101_enqueue_styles() {
+    if (get_query_var('itaiassistant101_index')) {
+        wp_enqueue_style('itaiassistant101-style', plugin_dir_url(__FILE__) . 'assets/css/style.css?time='.time());
+    }
+}
+add_action('wp_enqueue_scripts', 'itaiassistant101_enqueue_styles');
+
+function itaiassistant101_enqueue_scripts() {
+    if (get_query_var('itaiassistant101_index')) {
+        wp_enqueue_script('itaiassistant101-ui-script', plugin_dir_url(__FILE__) . 'assets/js/ui-script.js?time='.time(), array('jquery'), null, true);
+        wp_enqueue_script('itaiassistant101-script', plugin_dir_url(__FILE__) . 'assets/js/script.js?time='.time(), array('jquery'), null, true);
+    }
+}
+add_action('wp_enqueue_scripts', 'itaiassistant101_enqueue_scripts');
+
+
+
 ?>
