@@ -3,7 +3,7 @@ session_start();
 require_once 'APIConnector.php';
 require_once 'UserManager.php';
 
-$api_connector = new ApiConnector(api_key: '');
+$api_connector = new ApiConnector('');
 $user_manager = new UserManager();
 
 if (isset($_SESSION['jwt_token'])) {

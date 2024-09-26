@@ -1,6 +1,6 @@
 <?php
 
-require 'DataEncryption.php';
+require_once 'DataEncryption.php';
 
 class UserManager {
     private $db;

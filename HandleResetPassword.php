@@ -1,5 +1,5 @@
 <?php
-require 'UserManager.php';
+require_once 'UserManager.php';
 $user_manager = new UserManager();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {

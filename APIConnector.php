@@ -1,6 +1,6 @@
 <?php
-require 'vendor/autoload.php';
-require 'ClassManager.php';
+require_once 'vendor/autoload.php';
+require_once 'ClassManager.php';
 use \Firebase\JWT\JWT;
 use \Firebase\JWT\Key;
 
