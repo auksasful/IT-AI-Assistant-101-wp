@@ -23,43 +23,41 @@ class ApiConnector {
             error_log('Testing connection for registration');
             // Register mode
             $ch = curl_init();
-    
-            curl_setopt($ch, CURLOPT_URL, 'https://api.naga.ac/v1/tokenizer');
+            
+            curl_setopt($ch, CURLOPT_URL, 'https://generativelanguage.googleapis.com/v1beta/models?key=' . $this->api_key);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-            curl_setopt($ch, CURLOPT_POST, 1);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(["input" => "Test"]));
-    
+            curl_setopt($ch, CURLOPT_HTTPGET, 1);
+            
             $headers = [
                 'Accept: application/json',
-                'Authorization: Bearer ' . $this->api_key,
                 'Content-Type: application/json'
             ];
             curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    
+            
             $response = curl_exec($ch);
-    
+            
             if (curl_errno($ch)) {
                 echo 'Error:' . curl_error($ch);
                 return false;
             }
-    
+            
             $response_data = json_decode($response, true);
-
-            if (isset($response_data['total']) && $response_data['total'] == 1) {
+            
+            if (isset($response_data['models'])) {
                 $this->class_manager->insert_class($username . "'s class", $username, true);
                 return $this->generate_jwt($username, $user_type);
-            } elseif (isset($response_data['error']['type']) && $response_data['error']['type'] == 'invalid_api_key') {
+            } elseif (isset($response_data['error']['message']) && strpos($response_data['error']['message'], 'API key') !== false) {
                 return false;
             } else {
                 echo 'Unexpected response: ' . $response;
                 return false;
             }
-    
+            
             curl_close($ch);
         } 
         return $this->generate_jwt($username, $user_type);
     }
-    
+        
     private function generate_jwt($username, $user_type) {
         error_log('Generating JWT token for ' . $username . ' (' . $user_type . ')'); // Debug statement
         $payload = [
