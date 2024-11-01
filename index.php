@@ -5,10 +5,17 @@ session_start();
 require_once 'APIConnector.php';
 require_once 'ClassManager.php';
 require_once 'UserManager.php';
+require_once 'ExcelReader.php';
+require_once 'TaskData.php';
 
 $api_connector = new ApiConnector('');
 // $classManager = new ClassManager();
 $user_manager = new UserManager();
+$current_task = new TaskData();
+$current_task = $current_task->sampleTaskData();
+$username = '';
+$user_excel_string = '';
+$correct_excel_sting = ' [A1] => Stačiakampio plotas S = [B1] => [C1] => [D1] => [E1] => 140 [F1] => dm2 [G1] => [H1] => [I1] => [J1] => [A2] => a, dm [B2] => 2 [C2] => 1 [D2] => 7 [E2] => 28 [F2] => 14 [G2] => 1.4 [H2] => [I2] => [J2] => [A3] => b, dm [B3] => =E1/B2 ( 70 ) [C3] => =E1/C2 ( 140 ) [D3] => =E1/D2 ( 20 ) [E3] => =E1/E2 ( 5 ) [F3] => =E1/F2 ( 10 ) [G3] => =E1/G2 ( 100 ) [H3] => [I3] => [J3] => ';
 
 if (isset($_SESSION['jwt_token'])) {
     error_log('jwt_token found');
@@ -43,7 +50,7 @@ if (!isset($_SESSION['chat_parameters'])) {
     $_SESSION['chat_parameters'] = [
         "system_instruction" => [
             "parts" => [
-                "text" => "You are a lithuanian speaking chatbot, you speak in lithuanian language if possible, you can talk about anything, but you are not allowed to talk about politics, religion, or anything that could be considered offensive."
+                "text" => $current_task->getSystemPrompt()
             ]
         ],
         "contents" => []
@@ -53,17 +60,30 @@ if (!isset($_SESSION['chat_parameters'])) {
 
 // Function to send a request to the OpenAI API
 function callOpenAI($endpoint, $data) {
-
+    global $user_excel_string;
+    global $correct_excel_sting;
+    global $current_task;
     if ($data['messages'][count($data['messages']) - 1]['content'] == "clear-chat"){
         $_SESSION['chat_parameters'] = [
             "system_instruction" => [
                 "parts" => [
-                    "text" => "You are a lithuanian speaking chatbot, you speak in lithuanian language if possible, you can talk about anything, but you are not allowed to talk about politics, religion, or anything that could be considered offensive."
+                    "text" => $current_task->getSystemPrompt()
                 ]
             ],
             "contents" => []
         ];
-        return;
+    }
+
+    if($data['messages'][count($data['messages']) - 1]['content'] == "check-excel"){
+        error_log('user_excel_string: ' . $user_excel_string);
+        if ($user_excel_string == ''){
+            return;
+        }
+        else {
+            $data['messages'][count($data['messages']) - 1]['content'] = 'You must compare the result of a student'. $user_excel_string . 'with the correct result' . $correct_excel_sting . 'and provide feedback and useful tips. Make sure you only use the data from' . $user_excel_string .' for the final answer and do NOT use the correct result.';
+            $user_excel_string = '';
+            error_log($data['messages'][count($data['messages']) - 1]['content']);
+        }
     }
 
 
@@ -131,10 +151,8 @@ function loadChatHistory() {
     }
 }
 
-// Process to receive input from the user and generate a response from ChatGPT
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = $_POST['message'];
-
+// Function to process user input and generate a response
+function processChatInput($input) {
     // Retrieve conversation history from the session
     session_start();
     $messages = isset($_SESSION['messages']) ? $_SESSION['messages'] : [];
@@ -151,11 +169,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Save the conversation history to the session
     $_SESSION['messages'] = $messages;
 
-    echo $response;
-    exit(); // End the program after sending the response
+    return $response;
 }
 
+function sendModelMessage($message) {
+    // Retrieve conversation history from the session
+    session_start();
+    $messages = isset($_SESSION['messages']) ? $_SESSION['messages'] : [];
+    // Add ChatGPT's response to the conversation history manually
+    $messages[] = ['role' => 'model', 'content' => $message];
+
+    // Save the conversation history to the session
+    $_SESSION['messages'] = $messages;
+
+    echo $message;
+}
+
+function sendModelFile($filePath) {
+    if (file_exists($filePath)) {
+        // Set headers
+        header('Content-Description: File Transfer');
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="' . basename($filePath) . '"');
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate');
+        header('Pragma: public');
+        header('Content-Length: ' . filesize($filePath));
+    
+        // Clean the output buffer
+        ob_clean();
+    
+        flush();
+
+        // Read the file content
+        readfile($filePath);
+        exit;
+    }
+}
+
+
+// Function to handle file uploads
+function uploadFile() {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
+        global $username;
+        global $user_excel_string;
+        $folderPath = WP_CONTENT_DIR . '/ITAIAssistant101/' . $username . '/' . 'TASK1';
+        if (!is_dir($folderPath)) {
+            mkdir($folderPath, 0777, true);
+        }
+
+        $file = $_FILES['file'];
+        $filePath = $folderPath . '/' . basename($file['name']);
+
+        if (move_uploaded_file($file['tmp_name'], $filePath)) {
+            $excel_reader = new ExcelReader($filePath);
+
+            $excel_data = $excel_reader->readDataWithCoordinates();
+            $user_excel_string = print_r($excel_data, true);
+            $response = processChatInput("check-excel");
+            // echo $response;
+            error_log('resultsss:' . print_r($excel_data, true) . ' ' . $response);
+            return $response;
+        } else {
+            return 'File upload failed';
+        }
+    } else {
+        return 'Invalid request method or no file uploaded';
+    }
+}
+
+
+// Main execution logic
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['message'])) {
+        $input = $_POST['message'];
+        if ($input === 'intro-message') {
+            sendModelMessage($current_task->getPrompts()[0]);
+            sendModelMessage($current_task->getTaskFileClean());
+            // sendModelFile($current_task->getTaskFileClean());
+        } else {
+            $response = processChatInput($input);
+            echo $response;
+        }
+    } elseif (isset($_FILES['file'])) {
+        $result = uploadFile();
+        echo $result;
+    }
+    exit(); // End the program after sending the response
+}
 ?>
+
 
 <!DOCTYPE html>
 <html>
@@ -261,6 +364,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p class="control">
                     <button class="button is-primary" onclick="sendMessage()">Send</button>
                 </p>
+                <p class="control">
+                    <input type="file" id="fileInput" accept=".xls,.xlsx" onchange="uploadFile()">
+                </p>
             </div>
             <div id="loader">
                 <progress class="progress is-small is-primary" max="100"></progress>
@@ -274,13 +380,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const typingIndicator = document.getElementById('typing-indicator');
 
         function displayMessage(text, sender) {
-            //print text and sender
             console.log(text, sender);
             const messageContainer = document.createElement('div');
             messageContainer.classList.add('message-container', sender);
             const messageBubble = document.createElement('div');
             messageBubble.classList.add('message-bubble', sender);
-            const html = marked(text);
+
+            // Convert URLs in the text to clickable links
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            const html = marked(text.replace(urlRegex, function(url) {
+                return `<a href="${url}" target="_blank">${url}</a>`;
+            }));
+
             messageBubble.innerHTML = html;
             messageContainer.appendChild(messageBubble);
             chatContainer.appendChild(messageContainer);
@@ -330,9 +441,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
+        function sendIntroMessage() {
+            // displayMessage('intro-message', 'user');
+            showLoader();
+            showTypingIndicator();
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=intro-message',
+            })
+            .then(response => response.text())
+            .then(text => {
+                displayMessage(text, 'model');
+                // displayFileMessage('Task 1 file', text, 'model');
+                hideLoader();
+                hideTypingIndicator();
+            })
+            .catch(error => {
+                console.error('An error occurred:', error);
+                hideLoader();
+                hideTypingIndicator();
+            });
+        }
+
         function showMessage(task) {
             alert('You clicked on ' + task);
         }
+
+        function uploadFile() {
+            var fileInput = document.getElementById('fileInput');
+            var file = fileInput.files[0];
+
+            if (file) {
+                var fileName = file.name;
+                var fileExtension = fileName.split('.').pop().toLowerCase();
+
+                if (fileExtension === 'xls' || fileExtension === 'xlsx') {
+
+                    // Create form data and append file
+                    var formData = new FormData();
+                    formData.append('file', file);
+                    
+
+                    displayMessage('Submitted file: ' + fileName, 'user');
+                    showLoader();
+                    showTypingIndicator();
+                    // Use Fetch or AJAX to send file to server
+                    fetch('index.php', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.text())
+                    .then(result => {
+                        displayMessage(result, 'model');
+                        hideLoader();
+                        hideTypingIndicator();
+                        // console.log(result);
+                        // displayMessage(result, 'model');
+                        // alert('File uploaded successfully');
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('File upload failed');
+                    });
+                } else {
+                    alert('Please upload an XLS or XLSX file');
+                }
+            } else {
+                alert('No file selected');
+            }
+        }
+
 
         userInput.addEventListener('keydown', function(event) {
             if (event.key === 'Enter') {
@@ -340,9 +521,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
 
-        chatContainer.addEventListener("load", function() {
+        window.addEventListener("load", function() {
             setTimeout(function() {
                 <?php loadChatHistory(); ?>
+                sendIntroMessage();
+                console.log('Chat history loaded');
             }, 2000); // 2000 milliseconds = 2 seconds
         });
         

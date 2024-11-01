@@ -199,6 +199,30 @@ function create_class_table() {
     }
 }
 
+function move_default_student_tasks() {
+    $source_dir = plugin_dir_path(__FILE__) . 'default_student_tasks';
+    $destination_dir = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks';
+
+    if (!file_exists($destination_dir)) {
+        mkdir($destination_dir, 0755, true);
+    }
+
+    $files = scandir($source_dir);
+    foreach ($files as $file) {
+        if ($file !== '.' && $file !== '..') {
+            $source_file = $source_dir . '/' . $file;
+            $destination_file = $destination_dir . '/' . $file;
+            if (!copy($source_file, $destination_file)) {
+                error_log('Failed to copy ' . $source_file . ' to ' . $destination_file);
+            } else {
+                unlink($source_file);
+            }
+        }
+    }
+}
+
+register_activation_hook(__FILE__, 'move_default_student_tasks');
+
 
 
 register_activation_hook(__FILE__, 'create_user_table');
