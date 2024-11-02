@@ -7,14 +7,22 @@ require_once 'ClassManager.php';
 require_once 'UserManager.php';
 require_once 'ExcelReader.php';
 require_once 'TaskData.php';
+require_once 'PDFReader.php';
 
 $api_connector = new ApiConnector('');
 // $classManager = new ClassManager();
 $user_manager = new UserManager();
 $current_task = new TaskData();
-$current_task = $current_task->sampleTaskData();
+
+if(isset($_GET['task_id'])){
+    $current_task = $current_task->getTaskData($_GET['task_id']);
+}
+else {
+    $current_task = $current_task->getTaskData(1);
+}
 $username = '';
 $user_excel_string = '';
+$pdf_document_talking = true;
 $correct_excel_sting = ' [A1] => Stačiakampio plotas S = [B1] => [C1] => [D1] => [E1] => 140 [F1] => dm2 [G1] => [H1] => [I1] => [J1] => [A2] => a, dm [B2] => 2 [C2] => 1 [D2] => 7 [E2] => 28 [F2] => 14 [G2] => 1.4 [H2] => [I2] => [J2] => [A3] => b, dm [B3] => =E1/B2 ( 70 ) [C3] => =E1/C2 ( 140 ) [D3] => =E1/D2 ( 20 ) [E3] => =E1/E2 ( 5 ) [F3] => =E1/F2 ( 10 ) [G3] => =E1/G2 ( 100 ) [H3] => [I3] => [J3] => ';
 
 if (isset($_SESSION['jwt_token'])) {
@@ -63,6 +71,7 @@ function callOpenAI($endpoint, $data) {
     global $user_excel_string;
     global $correct_excel_sting;
     global $current_task;
+    global $pdf_document_talking;
     if ($data['messages'][count($data['messages']) - 1]['content'] == "clear-chat"){
         $_SESSION['chat_parameters'] = [
             "system_instruction" => [
@@ -74,7 +83,7 @@ function callOpenAI($endpoint, $data) {
         ];
     }
 
-    if($data['messages'][count($data['messages']) - 1]['content'] == "check-excel"){
+    if($data['messages'][count(value: $data['messages']) - 1]['content'] == "check-excel"){
         error_log('user_excel_string: ' . $user_excel_string);
         if ($user_excel_string == ''){
             return;
@@ -84,6 +93,26 @@ function callOpenAI($endpoint, $data) {
             $user_excel_string = '';
             error_log($data['messages'][count($data['messages']) - 1]['content']);
         }
+    }
+
+    if($pdf_document_talking){
+        $relevant_passage = call_embedded_pdf($data['messages'][count($data['messages']) - 1]['content']);
+        $_SESSION['chat_parameters'] = [
+            "system_instruction" => [
+                "parts" => [
+                    "text" => "You are a helpful and informative bot that answers questions in lithuanian language using text from the reference passage included below. \
+  Be sure to respond in a complete sentence, being comprehensive, including all relevant background information. \
+  However, you are talking to a non-technical audience, so be sure to break down complicated concepts and \
+  strike a friendly and converstional tone. \
+  If the passage is irrelevant to the answer, you may ignore it.
+  QUESTION: '" . $data['messages'][count($data['messages']) - 1]['content'] . "'
+  PASSAGE: '" . $relevant_passage . "'
+
+    ANSWER:"
+                ]
+            ],
+            "contents" => []
+        ];
     }
 
 
@@ -124,6 +153,66 @@ function callOpenAI($endpoint, $data) {
     return $assistant_response;
 }
 
+function embed_fn($text) {
+    global $API_KEY;
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=$API_KEY";
+    
+    // Extract the first 5 words for the title
+    // $title = implode(' ', array_slice(explode(' ', $text), 0, 5));  
+    
+    $data = array(
+      'model' => 'models/embedding-001',
+      'content' => array(
+        'parts' => array(
+          array(
+            'text' => $text //,
+            // 'title' => $title, 
+          ),
+        ),
+      ),
+      'task_type' => 'retrieval_document',
+    );
+  
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+      'Content-Type: application/json',
+    ));
+  
+    $response = curl_exec($ch);
+    curl_close($ch);
+  
+    $response = json_decode($response, true);
+    return $response['embedding']['values'];
+}
+
+function find_best_passage($query, $documents) {
+    $queryEmbedding = embed_fn($query);
+
+    $bestPassage = '';
+    $maxDotProduct = -1; // Initialize with a value less than any possible dot product
+
+    foreach ($documents as $document) {
+        $documentEmbedding = embed_fn($document);
+
+        // Calculate the dot product
+        $dotProduct = 0;
+        for ($i = 0; $i < count($queryEmbedding); $i++) {
+            $dotProduct += $queryEmbedding[$i] * $documentEmbedding[$i];
+        }
+
+        // Update best passage if current dot product is higher
+        if ($dotProduct > $maxDotProduct) {
+            $maxDotProduct = $dotProduct;
+            $bestPassage = $document;
+        }
+    }
+
+    return $bestPassage;
+}
+
 // Function to send a request to the OpenAI API regarding ChatGPT
 function chatGPT($messages) {
     $endpoint = 'https://api.openai.com/v1/chat/completions';
@@ -140,7 +229,7 @@ function chatGPT($messages) {
     return $response->candidates[0]->content->parts[0]->text;
 }
 
-function loadChatHistory() {
+function loadChatHistory(): void {
     if (isset($_SESSION['chat_parameters'])) {
         $chatHistory = $_SESSION['chat_parameters']['contents'];
         foreach ($chatHistory as $message) {
@@ -236,6 +325,48 @@ function uploadFile() {
     } else {
         return 'Invalid request method or no file uploaded';
     }
+}
+
+function call_embedded_pdf($user_message) {
+    $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
+    $pdfReader = new PdfReader();
+    $text_array = $pdfReader->getTextFromPages($filePath);
+    // print_r($text_array);
+    // $embeddings = [];
+    // foreach ($text_array as $text) {
+    //     $embedding = embed_fn($text);
+    //     $embeddings[] = $embedding; 
+    // }
+
+    // Print the embeddings (or use them for further processing)
+    // print_r($embeddings); 
+
+    // merge passages shorter than 40 words
+    $text_array = array_reduce($text_array, function($carry, $text) {
+        if (empty($carry)) {
+            $carry[] = $text;
+        } else {
+            $lastIndex = count($carry) - 1;
+            if (str_word_count($text) < 40) {
+                if (str_word_count($carry[$lastIndex]) < 40) {
+                    $carry[$lastIndex] .= ' ' . $text;
+                } else {
+                    $carry[] = $text;
+                }
+            } else {
+                $carry[] = $text;
+            }
+        }
+        return $carry;
+    }, []);
+
+    // Find the best passage that matches the user's query
+    $bestPassage = find_best_passage($user_message, $text_array);
+
+    // $user_message_embedding = embed_fn($user_message);
+    // print_r('best passage: ' . $bestPassage);
+    return $bestPassage;
+
 }
 
 
@@ -345,9 +476,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
             <div class="task-list">
-                <div class="task-item" onclick="showMessage('Task 1')">Task 1</div>
-                <div class="task-item" onclick="showMessage('Task 2')">Task 2</div>
-                <div class="task-item" onclick="showMessage('Task 3')">Task 3</div>
+                <div class="task-item" onclick="reloadWithTaskId(1)">Task 1</div>
+                <div class="task-item" onclick="reloadWithTaskId(2)">Task 2</div>
+                <div class="task-item" onclick="reloadWithTaskId(3)">Task 3</div>
+
+                <script>
+                    function reloadWithTaskId(taskId) {
+                        window.location.href = window.location.pathname + '?task_id=' + taskId;
+                    }
+                </script>
             </div>
             <div class="settings-menu">
                 <button class="button is-primary">Settings</button>
@@ -523,7 +660,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         window.addEventListener("load", function() {
             setTimeout(function() {
-                <?php loadChatHistory(); ?>
+                <?php //loadChatHistory(); ?>
                 sendIntroMessage();
                 console.log('Chat history loaded');
             }, 2000); // 2000 milliseconds = 2 seconds

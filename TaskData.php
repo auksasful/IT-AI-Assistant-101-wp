@@ -65,11 +65,11 @@ class TaskData {
     }
 
     public function sampleTaskData() {
-        $taskCleanFile = WP_CONTENT_URL . '/ITAIAssistant101/default_student_tasks/task1_clean.xlsx';
-        $taskCorrectFile = WP_CONTENT_URL . '/ITAIAssistant101/default_student_tasks/task1_correct.xlsx';
+        $taskCleanFile = WP_CONTENT_URL . '/ITAIAssistant101/default_student_tasks/task2_clean.xlsx';
+        $taskCorrectFile = WP_CONTENT_URL . '/ITAIAssistant101/default_student_tasks/task2_correct.xlsx';
         $taskText = 'You got an excel file. There is a task you have to do: Get the lenght for each line "a" be based on line "b" and overall area of the rectangle. Use formula for that.';
         $prompts = [$taskText, '', 'Congratulations! You have completed the task successfully!'];
-        $taskData = new TaskData( 1, 'Task 1', $taskCleanFile, $taskCorrectFile, $prompts);
+        $taskData = new TaskData( 2, 'Task 2', $taskCleanFile, $taskCorrectFile, $prompts);
         // $taskData->setPrompts( [$taskText, '', 'Congratulations! You have completed the task successfully!']);
         $taskData->setSystemPrompt('You are a helpful and patient AI assistant designed to help students learn data analysis using Excel. You will guide students through exercises by:
 - Providing them with a data analysis task in the form of an Excel file.
@@ -95,6 +95,22 @@ SPEAK IN LITHUANIAN!
 Terminai:
 Vartoti ne "ląstelė", o "langelis".');
         return $taskData;
+    }
+
+    public function getTaskData($taskId) {
+        $taskData = new TaskData();
+        if ($taskId == 1) {
+            $taskCleanFile = WP_CONTENT_URL . '/ITAIAssistant101/default_student_tasks/task1.pdf';
+            // $taskCorrectFile = WP_CONTENT_URL . '/ITAIAssistant101/default_student_tasks/task1_correct.xlsx';
+            $taskText = 'I have some theory for you to study. Please read it and answer the questions I ask.';
+            $prompts = [$taskText, '', 'Good Job!'];
+            $taskData = new TaskData( 1, 'Task 1', $taskCleanFile, '', $prompts);
+            // $taskData->setPrompts( [$taskText, '', 'Congratulations! You have completed the task successfully!']);
+            $taskData->setSystemPrompt('You are a helpful and patient AI assistant designed to help students learn data analysis theory');
+            return $taskData;
+        } else if ($taskId == 2) {
+            return $this->sampleTaskData();
+        }
     }
 }
 ?>
