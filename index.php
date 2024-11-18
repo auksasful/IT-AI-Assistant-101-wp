@@ -105,6 +105,7 @@ function callOpenAI($endpoint, $data) {
   However, you are talking to a non-technical audience, so be sure to break down complicated concepts and \
   strike a friendly and converstional tone. \
   If the passage is irrelevant to the answer, you may ignore it.
+  You should expand the answer a bit using your data outside of the passage if there is too little information in the passage. \
   QUESTION: '" . $data['messages'][count($data['messages']) - 1]['content'] . "'
   PASSAGE: '" . $relevant_passage . "'
 
@@ -328,6 +329,9 @@ function uploadFile() {
 }
 
 function call_embedded_pdf($user_message) {
+    call_embedded_ocr_pdf($user_message);
+    return;
+
     $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
     $pdfReader = new PdfReader();
     $text_array = $pdfReader->getTextFromPages($filePath);
@@ -341,14 +345,14 @@ function call_embedded_pdf($user_message) {
     // Print the embeddings (or use them for further processing)
     // print_r($embeddings); 
 
-    // merge passages shorter than 40 words
+    // merge passages shorter than 500 words
     $text_array = array_reduce($text_array, function($carry, $text) {
         if (empty($carry)) {
             $carry[] = $text;
         } else {
             $lastIndex = count($carry) - 1;
-            if (str_word_count($text) < 40) {
-                if (str_word_count($carry[$lastIndex]) < 40) {
+            if (str_word_count($text) < 500) {
+                if (str_word_count(string: $carry[$lastIndex]) < 500) {
                     $carry[$lastIndex] .= ' ' . $text;
                 } else {
                     $carry[] = $text;
@@ -369,15 +373,118 @@ function call_embedded_pdf($user_message) {
 
 }
 
+function summarize_pdf() {
+    $pdf_document_talking = false;
+    $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
+    $pdfReader = new PdfReader();
+    $text_array = $pdfReader->getTextFromPages($filePath);
+
+    // Merge passages shorter than 500 words
+    $text_array = array_reduce($text_array, function($carry, $text) {
+        if (empty($carry)) {
+            $carry[] = $text;
+        } else {
+            $lastIndex = count($carry) - 1;
+            if (str_word_count($text) < 500) {
+                if (str_word_count($carry[$lastIndex]) < 500) {
+                    $carry[$lastIndex] .= ' ' . $text;
+                } else {
+                    $carry[] = $text;
+                }
+            } else {
+                $carry[] = $text;
+            }
+        }
+        return $carry;
+    }, []);
+
+    $summaries = [];
+    foreach ($text_array as $text) {
+        $summaries[] = processChatInput('summarize this: ' . $text);
+    }
+        
+    // if (count($text_array) == 1 && str_word_count($text_array[0]) < 500) {
+    //     return $text_array[0];
+    // }
+
+    //summarize all the summaries with processChatInput
+    $final_summary = '';
+    foreach ($summaries as $summary) {
+        $final_summary .= $summary;
+    }
+    $pdf_document_talking = true;
+    return processChatInput('summarize this in lithuanian and in detail: ' . $final_summary);
+}
+
+
+function get_example_questions_from_pdf() {
+    $pdf_document_talking = false;
+    $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
+    $pdfReader = new PdfReader();
+    $text_array = $pdfReader->getTextFromPages($filePath);
+
+    // Merge passages shorter than 500 words
+    $text_array = array_reduce($text_array, function($carry, $text) {
+        if (empty($carry)) {
+            $carry[] = $text;
+        } else {
+            $lastIndex = count($carry) - 1;
+            if (str_word_count($text) < 500) {
+                if (str_word_count($carry[$lastIndex]) < 500) {
+                    $carry[$lastIndex] .= ' ' . $text;
+                } else {
+                    $carry[] = $text;
+                }
+            } else {
+                $carry[] = $text;
+            }
+        }
+        return $carry;
+    }, []);
+
+    $questions = [];
+    foreach ($text_array as $text) {
+        $questions[] = processChatInput('generate 5 questions from this passage in lithuanian: ' . $text);
+    }
+        
+    // if (count($text_array) == 1 && str_word_count($text_array[0]) < 500) {
+    //     return $text_array[0];
+    // }
+
+    //summarize all the summaries with processChatInput
+    $final_questions = '';
+    foreach ($questions as $question) {
+        $final_questions .= $question;
+    }
+    $pdf_document_talking = true;
+    return $final_questions;// processChatInput('remove duplicate questions that have the same meaning leaving only one: ' . $final_questions);
+}
+
+
+function call_embedded_ocr_pdf($message) {
+    global $API_KEY;
+    $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
+    $pdfReader = new PdfReader();
+    return $pdfReader->uploadFileNew($API_KEY, $filePath, 'task111.pdf', $message);
+    // return $pdfReader->uploadAndDescribeFile($API_KEY, $filePath, 'downloaded_sc2.png');
+
+}
 
 // Main execution logic
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['message'])) {
         $input = $_POST['message'];
         if ($input === 'intro-message') {
-            sendModelMessage($current_task->getPrompts()[0]);
-            sendModelMessage($current_task->getTaskFileClean());
+            // sendModelMessage($current_task->getPrompts()[0]);
+            // sendModelMessage($current_task->getTaskFileClean());
+            // sendModelMessage(summarize_pdf());
+            // sendModelMessage(get_example_questions_from_pdf());
             // sendModelFile($current_task->getTaskFileClean());
+            if (call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language')) {
+                sendModelMessage('File uploaded successfully');
+            } else {
+                sendModelMessage('File upload failed');
+            }
         } else {
             $response = processChatInput($input);
             echo $response;
