@@ -248,6 +248,7 @@ class PdfReader
     public function uploadFileNew($api_key, $filePath, $displayName, $message = 'Please summarize the text in the PDF file in Lithuanian language')
     {
         $client = new Client();
+        error_log("Starting upload of '{$filePath}' to Google Cloud Storage...");
         $url = "https://generativelanguage.googleapis.com/upload/v1beta/files?key={$api_key}";
         $fileContent = file_get_contents($filePath);
         $mimeType = mime_content_type($filePath);
@@ -267,11 +268,12 @@ class PdfReader
 
             $responseData = json_decode($response->getBody()->getContents(), true);
 
-            print_r( [
-                'uri' => $responseData['file']['uri'] ?? null,
-                'mimeType' => $mimeType,
-            ]);
-            $this->analyzePdf($api_key, $responseData['file']['uri'], $message);
+            // print_r( [
+            //     'uri' => $responseData['file']['uri'] ?? null,
+            //     'mimeType' => $mimeType,
+            // ]);
+            return $responseData['file']['uri'];
+            // return $this->analyzePdf($api_key, $responseData['file']['uri'], $message);
         } catch (RequestException $e) {
             throw $e;
         }
@@ -302,20 +304,27 @@ class PdfReader
                 'responseMimeType' => 'text/plain',
             ],
         ];
-
+    
         try {
             $response = $client->post($url, [
                 'headers' => ['Content-Type' => 'application/json'],
                 'json' => $jsonData,
             ]);
-
-            print_r(json_decode($response->getBody()->getContents(), true));
-
+    
+            $responseData = json_decode($response->getBody()->getContents(), true);
+    
+            if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
+                // Return only the text part
+                return $responseData['candidates'][0]['content']['parts'][0]['text'];
+            } else {
+                throw new Exception("Text content not found in the response");
+            }
         } catch (RequestException $e) {
             throw $e;
+        } catch (Exception $e) {
+            throw $e;
         }
-    }
-
+    }    
 
 }
 

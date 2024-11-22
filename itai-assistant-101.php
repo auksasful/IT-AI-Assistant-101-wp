@@ -199,6 +199,41 @@ function create_class_table() {
     }
 }
 
+function create_task_table() {
+    error_log('create_task_table called'); // Debug statement
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'it_ai_assistant101_task';
+    
+    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        $charset_collate = $wpdb->get_charset_collate();
+    
+        $sql = "CREATE TABLE $table_name (
+            task_id int(11) NOT NULL AUTO_INCREMENT,
+            task_name varchar(255) NOT NULL,
+            task_text text NOT NULL,
+            task_type varchar(255) NOT NULL,
+            task_file_clean varchar(255),
+            task_file_correct varchar(255),
+            task_file_uri varchar(255),
+            system_prompt text,
+            default_summary text,
+            default_self_check_questions text,
+            class_id int(11) NOT NULL,
+            PRIMARY KEY  (task_id),
+            FOREIGN KEY (class_id) REFERENCES {$wpdb->prefix}it_ai_assistant101_class(class_id)
+        ) $charset_collate;";
+    
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+        error_log('Table created: ' . $table_name); // Debug statement
+    } 
+    else {
+        error_log('Table already exists: ' . $table_name); // Debug statement
+    }
+}
+
+register_activation_hook(__FILE__, 'create_task_table');
+
 function move_default_student_tasks() {
     $source_dir = plugin_dir_path(__FILE__) . 'default_student_tasks';
     $destination_dir = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks';

@@ -8,6 +8,7 @@ require_once 'UserManager.php';
 require_once 'ExcelReader.php';
 require_once 'TaskData.php';
 require_once 'PDFReader.php';
+require_once 'TaskManager.php';
 
 $api_connector = new ApiConnector('');
 // $classManager = new ClassManager();
@@ -303,25 +304,29 @@ function uploadFile() {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
         global $username;
         global $user_excel_string;
+        global $API_KEY;
         $folderPath = WP_CONTENT_DIR . '/ITAIAssistant101/' . $username . '/' . 'TASK1';
         if (!is_dir($folderPath)) {
             mkdir($folderPath, 0777, true);
         }
 
         $file = $_FILES['file'];
-        $filePath = $folderPath . '/' . basename($file['name']);
-
+        $dateTime = date('YmdHis');
+        $filePath = $folderPath . '/' . $username . '_' . $dateTime . '_' . basename($file['name']);  
         if (move_uploaded_file($file['tmp_name'], $filePath)) {
-            $excel_reader = new ExcelReader($filePath);
+            $PDFReader = new PDFReader();
+            $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, 'task111.pdf');
+            return [$filePath, $fileUri];  
+            // $excel_reader = new ExcelReader($filePath);
 
-            $excel_data = $excel_reader->readDataWithCoordinates();
-            $user_excel_string = print_r($excel_data, true);
-            $response = processChatInput("check-excel");
-            // echo $response;
-            error_log('resultsss:' . print_r($excel_data, true) . ' ' . $response);
-            return $response;
+            // $excel_data = $excel_reader->readDataWithCoordinates();
+            // $user_excel_string = print_r($excel_data, true);
+            // $response = processChatInput("check-excel");
+            // // echo $response;
+            // error_log('resultsss:' . print_r($excel_data, true) . ' ' . $response);
+            // return $response;
         } else {
-            return 'File upload failed';
+            return '';
         }
     } else {
         return 'Invalid request method or no file uploaded';
@@ -461,13 +466,18 @@ function get_example_questions_from_pdf() {
 }
 
 
-function call_embedded_ocr_pdf($message) {
+function call_embedded_ocr_pdf($message, $fileUri = '') { 
     global $API_KEY;
-    $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
     $pdfReader = new PdfReader();
-    return $pdfReader->uploadFileNew($API_KEY, $filePath, 'task111.pdf', $message);
+    echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message);
+    return true;
     // return $pdfReader->uploadAndDescribeFile($API_KEY, $filePath, 'downloaded_sc2.png');
 
+}
+
+function saveTask($name, $text, $type, $class_id, $file_clean = null, $file_correct = null, $file_uri = null, $system_prompt = null, $default_summary = null, $default_self_check_questions = null) {
+    $taskManager = new TaskManager();
+    $taskManager->insert_task($name, $text, $type, $class_id, $file_clean, $file_correct, $file_uri, $system_prompt, $default_summary, $default_self_check_questions);
 }
 
 // Main execution logic
@@ -480,18 +490,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // sendModelMessage(summarize_pdf());
             // sendModelMessage(get_example_questions_from_pdf());
             // sendModelFile($current_task->getTaskFileClean());
-            if (call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language')) {
-                sendModelMessage('File uploaded successfully');
-            } else {
-                sendModelMessage('File upload failed');
+            call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language');
+          
+        }
+        elseif ($input === 'task-summary') {
+            // $filePath = urldecode($_POST['filePath']);
+            $fileUri = urldecode($_POST['fileUri']);
+            if (file_exists($filePath)) {
+                error_log("File exists.");
+            } 
+            else 
+            { 
+                error_log("File does not exist."); 
             }
-        } else {
+            call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language', $fileUri);
+        }
+        elseif($input === 'task-questions') {
+            // $filePath = urldecode($_POST['filePath']);
+            $fileUri = urldecode($_POST['fileUri']);
+            call_embedded_ocr_pdf('Please write some self-check questions with answers from the PDF file in Lithuanian language', $fileUri);
+        }
+        elseif($input === 'task-save') {
+            //saveTask
+            $name = $_POST['name'];
+            $text = $_POST['text'];
+            $type = $_POST['type'];
+            $class_id = $_POST['class_id'];
+            $file_clean = urldecode($_POST['file_clean']);
+            $file_correct = urldecode($_POST['file_correct']);
+            $file_uri = urldecode($_POST['file_uri']);
+            $system_prompt = 'You are a helpful and informative bot that answers questions in lithuanian language using text from the file.';
+            $default_summary = $_POST['default_summary'];
+            $default_self_check_questions = $_POST['default_self_check_questions'];
+            saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $file_uri, $system_prompt, $default_summary, $default_self_check_questions);
+        }
+        else {
             $response = processChatInput($input);
             echo $response;
         }
     } elseif (isset($_FILES['file'])) {
         $result = uploadFile();
-        echo $result;
+        echo json_encode($result);
     }
     exit(); // End the program after sending the response
 }
@@ -522,6 +561,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         .class-selector, .task-list, .settings-menu {
             padding: 1rem;
+        }
+        .settings-menu {
+            padding: 1rem;
+            /* display: flex; */
+            justify-content: space-between;
+        }
+
+        .settings-menu .button {
+            flex: 1;
+            margin-right: 0.5rem;
+        }
+
+        .settings-menu .button:last-child {
+            margin-right: 0;
+        }
+        #task-addition {
+            margin-top: 1rem;
+        }
+        #class-selection .button {
+            background-color: #3273dc; /* Blue color for class selection button */
+            color: white;
+        }
+
+        #task-addition .button {
+            background-color: #00d1b2; /* Green color for task addition button */
+            color: white;
         }
         .task-list {
             flex-grow: 1;
@@ -572,16 +637,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <section class="section">
         <div class="left-panel">
-            <div class="class-selector">
-                <div class="select">
-                    <select>
-                        <option>Select Class</option>
-                        <option>Class 1</option>
-                        <option>Class 2</option>
-                        <option>Class 3</option>
-                    </select>
-                </div>
+            <div id="class-selection">
+                <button class="button is-link" onclick="openClassModal()">Select Class</button>
             </div>
+            <div id="task-addition">
+                <button class="button is-primary" onclick="addTask()">Add Task</button>
+            </div>  
             <div class="task-list">
                 <div class="task-item" onclick="reloadWithTaskId(1)">Task 1</div>
                 <div class="task-item" onclick="reloadWithTaskId(2)">Task 2</div>
@@ -617,11 +678,140 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </section>
+    <!-- TODO add file upload and db field for uploaded file path, link to php and sql, add auto fill with gemini -->
+    <!-- Add Task Modal -->
+    <div class="modal" id="addTaskModal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Add Task</p>
+                <button class="delete" aria-label="close" onclick="closeModal()"></button>
+            </header>
+            <section class="modal-card-body">
+                <div id="step1">
+                    <div class="field">
+                        <label class="label">Task Name</label>
+                        <div class="control">
+                            <input class="input" type="text" id="taskName" placeholder="Enter task name">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label">Task Type</label>
+                        <div class="control">
+                            <div class="select">
+                                <select id="taskType" onchange="togglePdfFields()">
+                                    <option value="PDF">PDF</option>
+                                    <option value="Excel">Excel</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label">Upload File</label>
+                        <div class="control">
+                            <input type="file" id="taskFile" accept=".pdf,.xls,.xlsx" onchange="validateFileType()">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label">Task Description</label>
+                        <div class="control">
+                            <textarea class="textarea" id="taskDescription" placeholder="Enter task description"></textarea>
+                        </div>
+                    </div>
+                    <button class="button is-primary" onclick="nextStep()">Next</button>
+                </div>
+                <div id="step2" style="display: none;">
+                    <p><strong>Task Name:</strong> <span id="displayTaskName"></span></p>
+                    <p><strong>Task Type:</strong> <span id="displayTaskType"></span></p>
+                    <p><strong>Uploaded File:</strong> <span id="displayTaskFile"></span></p>  
+                    <p><strong>Task Description:</strong> <span id="displayTaskDescription"></span></p>
+                    <button class="button" onclick="previousStep()">Back</button>
+                    <button class="button is-primary" onclick="nextStep()">Next</button>
+                </div>
+                <div id="step3" style="display: none;">
+                    <div class="pdf-field">
+                        <div class="field">
+                            <label class="label">Task Summary</label>
+                            <button class="button" onclick="writeTaskSummary()">Write summary with AI</button>
+                            <div class="control">
+                                <textarea class="textarea" id="taskSummary" placeholder="Enter task summary"></textarea>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="label">Task Self Check Questions</label>
+                            <button class="button" onclick="writeTaskQuestions()">Write questions with AI</button>
+                            <div class="control">
+                                <textarea class="textarea" id="taskQuestions" placeholder="Enter task self check questions"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="button" onclick="previousStep()">Back</button>
+                    <button class="button is-primary" onclick="nextStep()">Next</button>
+                </div>
+                <div id="step4" style="display: none;">
+                    <p><strong>Task Name:</strong> <span id="finalTaskName"></span></p>
+                    <p><strong>Task Type:</strong> <span id="finalTaskType"></span></p>
+                    <p><strong>Uploaded File:</strong> <span id="displayTaskFile2"></span></p>  
+                    <p><strong>Task Description:</strong> <span id="finalTaskDescription"></span></p>
+                    <p class="pdf-field"><strong>Task Summary:</strong> <span id="finalTaskSummary"></span></p>
+                    <p class="pdf-field"><strong>Task Self Check Questions:</strong> <span id="finalTaskQuestions"></span></p>
+                    <button class="button" onclick="previousStep()">Back</button>
+                    <button class="button is-success" onclick="saveTask()">Save Task</button>
+                </div>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button" onclick="closeModal()">Cancel</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Add Class Modal -->
+    <div class="modal" id="addClassModal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Select Class</p>
+                <button class="delete" aria-label="close" onclick="closeClassModal()"></button>
+            </header>
+            <section class="modal-card-body">
+                <div class="field">
+                    <label class="label">Available Classes</label>
+                    <div class="control">
+                        <div class="list">
+                            <div class="list-item" onclick="selectClass('Class 1')">Class 1</div>
+                            <div class="list-item" onclick="selectClass('Class 2')">Class 2</div>
+                            <div class="list-item" onclick="selectClass('Class 3')">Class 3</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button" onclick="closeClassModal()">Close</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal" id="loadingModal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Request Loading</p>
+            </header>
+            <section class="modal-card-body">
+                <progress class="progress is-small is-primary" max="100">Loading...</progress>
+                <p>Please wait while we process your request.</p>
+            </section>
+        </div>
+    </div>
     <script>
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
         const loader = document.getElementById('loader');
         const typingIndicator = document.getElementById('typing-indicator');
+
+        let currentTaskFilePath = '';
+        let currentTaskFileUri = '';
 
         function displayMessage(text, sender) {
             console.log(text, sender);
@@ -710,6 +900,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
+        function showLoadingModal() {
+            document.getElementById('loadingModal').classList.add('is-active');
+        }
+
+        function hideLoadingModal() {
+            document.getElementById('loadingModal').classList.remove('is-active');
+        }
+
+        function writeTaskSummary() {
+            // showLoader();
+            // showTypingIndicator();
+            showLoadingModal();
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=task-summary&fileUri=' + encodeURIComponent(currentTaskFileUri),
+            })
+            .then(response => response.text())
+            .then(text => {
+                document.getElementById('taskSummary').value = text;
+                hideLoadingModal();
+                // displayMessage(text, 'model');
+                // hideLoader();
+                // hideTypingIndicator();
+            })
+            .catch(error => {
+                console.error('An error occurred:', error);
+                hideLoadingModal();
+                // hideLoader();
+                // hideTypingIndicator();
+            });
+        }
+
+        function writeTaskQuestions() {
+            // showLoader();
+            // showTypingIndicator();
+            showLoadingModal();
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=task-questions&fileUri=' + encodeURIComponent(currentTaskFileUri),
+            })
+            .then(response => response.text())
+            .then(text => {
+                document.getElementById('taskQuestions').value = text;
+                hideLoadingModal();
+                // displayMessage(text, 'model');
+                // hideLoader();
+                // hideTypingIndicator();
+            })
+            .catch(error => {
+                console.error('An error occurred:', error);
+                hideLoadingModal();
+                // hideLoader();
+                // hideTypingIndicator();
+            });
+        }
+
         function showMessage(task) {
             alert('You clicked on ' + task);
         }
@@ -758,6 +1010,156 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        function validateFileType() {
+            const taskType = document.getElementById('taskType').value;
+            const fileInput = document.getElementById('taskFile');
+            const file = fileInput.files[0];
+            const fileName = file.name;
+            const fileExtension = fileName.split('.').pop().toLowerCase();
+
+            if ((taskType === 'PDF' && fileExtension !== 'pdf') || 
+                (taskType === 'Excel' && (fileExtension !== 'xls' && fileExtension !== 'xlsx'))) {
+                alert('Please upload a valid ' + taskType + ' file.');
+                fileInput.value = ''; // Clear the input
+            }
+
+            // Create form data and append file
+            var formData = new FormData();
+            formData.append('file', file);
+            
+            // Use Fetch or AJAX to send file to server
+            fetch('index.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(result => {
+                result = JSON.parse(result);
+                currentTaskFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
+                currentTaskFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
+                // currentTaskFilePath = result.replace(/(\r\n|\n|\r)/gm, "").split(",")[0];
+                // currentTaskFileUri = result.replace(/(\r\n|\n|\r)/gm, "").split(",")[1];
+
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // alert('File upload failed');
+            });
+        }
+
+        function addTask() {
+            document.getElementById('addTaskModal').classList.add('is-active');
+        }
+
+
+        function closeModal() {
+            document.getElementById('addTaskModal').classList.remove('is-active');
+            currentStep = 1;
+            document.getElementById('step1').style.display = 'block';
+            document.getElementById('step2').style.display = 'none';
+            document.getElementById('step3').style.display = 'none';
+            document.getElementById('step4').style.display = 'none';
+        }
+
+        function togglePdfFields() {
+            const taskType = document.getElementById('taskType').value;
+            const pdfFields = document.querySelectorAll('.pdf-field');
+            pdfFields.forEach(field => {
+                field.style.display = taskType === 'PDF' ? 'block' : 'none';
+            });
+        }
+
+        let currentStep = 1;
+
+        function nextStep() {
+            if (currentStep === 1) {
+                const fileInput = document.getElementById('taskFile');
+                const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : 'No file selected';
+                document.getElementById('displayTaskFile').innerText = fileName;
+                document.getElementById('displayTaskFile2').innerText = fileName;
+            }
+            if (currentStep === 1) {
+                document.getElementById('displayTaskName').innerText = document.getElementById('taskName').value;
+                document.getElementById('displayTaskType').innerText = document.getElementById('taskType').value;
+                document.getElementById('displayTaskDescription').innerText = document.getElementById('taskDescription').value;
+            } else if (currentStep === 2) {
+                if (document.getElementById('taskType').value === 'PDF') {
+                    document.getElementById('step3').style.display = 'block';
+                    document.getElementById('step2').style.display = 'none';
+                    currentStep++;
+                    return;
+                }
+            } else if (currentStep === 3) {
+                document.getElementById('finalTaskName').innerText = document.getElementById('taskName').value;
+                document.getElementById('finalTaskType').innerText = document.getElementById('taskType').value;
+                document.getElementById('finalTaskDescription').innerText = document.getElementById('taskDescription').value;
+                document.getElementById('finalTaskSummary').innerText = document.getElementById('taskSummary').value;
+                document.getElementById('finalTaskQuestions').innerText = document.getElementById('taskQuestions').value;
+                if (document.getElementById('taskType').value !== 'PDF') {
+                    document.getElementById('step4').style.display = 'block';
+                    document.getElementById('step3').style.display = 'none';
+                    currentStep++;
+                    return;
+                }
+            }
+
+            document.getElementById('step' + currentStep).style.display = 'none';
+            currentStep++;
+            document.getElementById('step' + currentStep).style.display = 'block';
+        }
+
+        function previousStep() {
+            document.getElementById('step' + currentStep).style.display = 'none';
+            currentStep--;
+            document.getElementById('step' + currentStep).style.display = 'block';
+        }
+
+
+        function saveTask() {
+            const taskName = document.getElementById('taskName').value;
+            const taskType = document.getElementById('taskType').value;
+            const taskDescription = document.getElementById('taskDescription').value;
+            const taskSummary = document.getElementById('taskSummary').value;
+            const taskQuestions = document.getElementById('taskQuestions').value;
+
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=task-save&name=' + encodeURIComponent(taskName) + '&text=' + encodeURIComponent(taskDescription) + '&type=' + encodeURIComponent(taskType) + '&class_id=1' + '&file_clean=' + encodeURIComponent(currentTaskFilePath) + '&file_correct=' + encodeURIComponent(currentTaskFilePath) + '&file_uri=' + encodeURIComponent(currentTaskFileUri) + '&system_prompt=' + encodeURIComponent(taskSummary) + '&default_summary=' + encodeURIComponent(taskSummary) + '&default_self_check_questions=' + encodeURIComponent(taskQuestions),
+            })
+
+            // Add the new task to the task list
+            const taskList = document.querySelector('.task-list');
+            const newTaskItem = document.createElement('div');
+            newTaskItem.classList.add('task-item');
+            newTaskItem.textContent = taskName;
+            newTaskItem.onclick = function() {
+                reloadWithTaskId(taskList.children.length + 1);
+            };
+            taskList.appendChild(newTaskItem);
+
+            // Close the modal
+            closeModal();
+        }
+
+
+        // Initialize modal fields visibility
+        togglePdfFields();
+
+        function openClassModal() {
+            document.getElementById('addClassModal').classList.add('is-active');
+        }
+
+        function closeClassModal() {
+            document.getElementById('addClassModal').classList.remove('is-active');
+        }
+
+        function selectClass(className) {
+            alert('You selected ' + className);
+            closeClassModal();
+        }
 
         userInput.addEventListener('keydown', function(event) {
             if (event.key === 'Enter') {
@@ -768,7 +1170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         window.addEventListener("load", function() {
             setTimeout(function() {
                 <?php //loadChatHistory(); ?>
-                sendIntroMessage();
+                // sendIntroMessage();
                 console.log('Chat history loaded');
             }, 2000); // 2000 milliseconds = 2 seconds
         });
