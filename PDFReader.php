@@ -279,6 +279,19 @@ class PdfReader
         }
     }
 
+    public function fileExists($api_key, $fileUri)
+    {
+        $client = new Client();
+        $url = "{$fileUri}?key={$api_key}";
+
+        try {
+            $response = $client->get($url);
+            return $response->getStatusCode() === 200;
+        } catch (RequestException $e) {
+            return false;
+        }
+    }
+
 
     public function analyzePdf($api_key, $fileUri, $message)
     {

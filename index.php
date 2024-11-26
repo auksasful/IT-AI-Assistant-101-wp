@@ -13,13 +13,14 @@ require_once 'TaskManager.php';
 $api_connector = new ApiConnector('');
 // $classManager = new ClassManager();
 $user_manager = new UserManager();
-$current_task = new TaskData();
+$current_task = "";
+$taskManager = new TaskManager();
 
 if(isset($_GET['task_id'])){
-    $current_task = $current_task->getTaskData($_GET['task_id']);
+    $current_task = $taskManager->get_task($_GET['task_id']);
 }
 else {
-    $current_task = $current_task->getTaskData(1);
+    $current_task = "No task selected";
 }
 $username = '';
 $user_excel_string = '';
@@ -77,14 +78,14 @@ function callOpenAI($endpoint, $data) {
         $_SESSION['chat_parameters'] = [
             "system_instruction" => [
                 "parts" => [
-                    "text" => $current_task->getSystemPrompt()
+                    "text" => $current_task->system_prompt
                 ]
             ],
             "contents" => []
         ];
     }
 
-    if($data['messages'][count(value: $data['messages']) - 1]['content'] == "check-excel"){
+    if($data['messages'][count($data['messages']) - 1]['content'] == "check-excel"){
         error_log('user_excel_string: ' . $user_excel_string);
         if ($user_excel_string == ''){
             return;
@@ -476,9 +477,35 @@ function call_embedded_ocr_pdf($message, $fileUri = '') {
 }
 
 function saveTask($name, $text, $type, $class_id, $file_clean = null, $file_correct = null, $file_uri = null, $system_prompt = null, $default_summary = null, $default_self_check_questions = null) {
-    $taskManager = new TaskManager();
+    global $taskManager;
     $taskManager->insert_task($name, $text, $type, $class_id, $file_clean, $file_correct, $file_uri, $system_prompt, $default_summary, $default_self_check_questions);
 }
+
+// get_tasks_by_class_id
+function getTasksByClassId($class_id) {
+    global $taskManager;
+    return $taskManager->get_tasks_by_class_id($class_id);
+}
+
+
+function convert_path_to_url($full_path) {
+    // Split the path to extract the domain name
+    $path_parts = explode('/', $full_path);
+
+    // Extract the relevant path after the domain
+    $relevant_path = array_slice($path_parts, 6);  // Adjust this according to your structure
+
+    // Construct the URL without encoding the domain and basic structure
+    $url = 'https://' . $path_parts[4] . '/' . implode('/', $relevant_path);
+
+    // Encode only the parts of the URL that need it
+    $encoded_url = preg_replace_callback('/[^A-Za-z0-9\-\/]/', function($matches) {
+        return rawurlencode($matches[0]);
+    }, $url);
+
+    return $encoded_url;
+}
+
 
 // Main execution logic
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -490,8 +517,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // sendModelMessage(summarize_pdf());
             // sendModelMessage(get_example_questions_from_pdf());
             // sendModelFile($current_task->getTaskFileClean());
-            call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language');
-          
+            if ($current_task->task_id != null) {
+                sendModelMessage("**Task name:**<br>{$current_task->task_name}");
+                sendModelMessage("**Task text:**<br>{$current_task->task_text}");
+                sendModelMessage("**Task file:**<br>" . convert_path_to_url($current_task->task_file_clean));
+                if ($current_task->task_type == 'PDF') {
+                    sendModelMessage("**Task summary:**<br>{$current_task->default_summary}");
+                    sendModelMessage("**Task self-check questions:**<br>{$current_task->default_self_check_questions}");
+                }
+                // call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language');
+            }
+            else {
+                sendModelMessage('No task selected');
+            }
         }
         elseif ($input === 'task-summary') {
             // $filePath = urldecode($_POST['filePath']);
@@ -524,9 +562,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $default_self_check_questions = $_POST['default_self_check_questions'];
             saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $file_uri, $system_prompt, $default_summary, $default_self_check_questions);
         }
+        elseif($input === 'task-list') {
+            $class_id = $_POST['class_id'];
+            $tasks = getTasksByClassId($class_id);
+            echo json_encode($tasks);
+        }
         else {
-            $response = processChatInput($input);
-            echo $response;
+                if ($current_task->task_type == 'PDF') {
+                    $pdfReader = new PdfReader();
+                    $fileUri = $current_task->task_file_uri;
+                    if (!$pdfReader->fileExists($API_KEY, $fileUri)) {
+                        $fileUri = $pdfReader->uploadFileNew($API_KEY, $current_task->task_file_clean, 'task111.pdf');
+                        $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $fileUri, $current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
+                    }
+                    call_embedded_ocr_pdf("Please answer to the user message {$input} from the file in Lithuanian", $fileUri);
+                }
+                else {
+                    $response = processChatInput($input);
+                    echo $response;
+                }
         }
     } elseif (isset($_FILES['file'])) {
         $result = uploadFile();
@@ -644,9 +698,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <button class="button is-primary" onclick="addTask()">Add Task</button>
             </div>  
             <div class="task-list">
-                <div class="task-item" onclick="reloadWithTaskId(1)">Task 1</div>
+                <!-- <div class="task-item" onclick="reloadWithTaskId(1)">Task 1</div>
                 <div class="task-item" onclick="reloadWithTaskId(2)">Task 2</div>
-                <div class="task-item" onclick="reloadWithTaskId(3)">Task 3</div>
+                <div class="task-item" onclick="reloadWithTaskId(3)">Task 3</div> -->
 
                 <script>
                     function reloadWithTaskId(taskId) {
@@ -1047,6 +1101,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
+        function getTasksList(classId) {
+            console.log('Fetching tasks for class ' + classId);
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=task-list&class_id=' + classId,
+            })
+            .then(response => response.json())
+            .then(tasks => {
+                const taskList = document.querySelector('.task-list');
+                // taskList.innerHTML = '';
+                tasks.forEach(task => {
+                    console.log(task);
+                    const newTaskItem = document.createElement('div');
+                    newTaskItem.classList.add('task-item');
+                    newTaskItem.textContent = task.task_name;
+                    newTaskItem.onclick = function() {
+                        reloadWithTaskId(task.task_id);
+                    };
+                    taskList.appendChild(newTaskItem);
+                });
+            })
+            .catch(error => {
+                console.error('An error occurred:', error);
+            });
+        }
+
         function addTask() {
             document.getElementById('addTaskModal').classList.add('is-active');
         }
@@ -1170,8 +1253,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         window.addEventListener("load", function() {
             setTimeout(function() {
                 <?php //loadChatHistory(); ?>
-                // sendIntroMessage();
+                sendIntroMessage();
                 console.log('Chat history loaded');
+                getTasksList(1);
             }, 2000); // 2000 milliseconds = 2 seconds
         });
         
