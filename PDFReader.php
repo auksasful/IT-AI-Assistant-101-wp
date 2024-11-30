@@ -245,7 +245,7 @@ class PdfReader
     }
 
 
-    public function uploadFileNew($api_key, $filePath, $displayName, $message = 'Please summarize the text in the PDF file in Lithuanian language')
+    public function uploadFileNew($api_key, $filePath, $displayName, $contentType='application/pdf')
     {
         $client = new Client();
         error_log("Starting upload of '{$filePath}' to Google Cloud Storage...");
@@ -260,7 +260,7 @@ class PdfReader
                     'X-Goog-Upload-Command' => 'start, upload, finalize',
                     'X-Goog-Upload-Header-Content-Length' => $numBytes,
                     'X-Goog-Upload-Header-Content-Type' => $mimeType,
-                    'Content-Type' => 'application/pdf',
+                    'Content-Type' => $contentType,
                 ],
                 'query' => ['uploadType' => 'media', 'key' => $api_key],
                 'body' => $fileContent,
@@ -337,7 +337,57 @@ class PdfReader
         } catch (Exception $e) {
             throw $e;
         }
-    }    
+    }  
+    
+    public function analyzeExcel($api_key, $fileUri1, $fileUri2, $message)
+    {
+        error_log("Analyzing Excel files...");
+        error_log("  File 1: {$fileUri1}");
+        error_log("  File 2: {$fileUri2}");
+        $client = new Client();
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $jsonData = [
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => [
+                        ['fileData' => ['fileUri' => $fileUri1, 'mimeType' => 'text/plain']],
+                        ['fileData' => ['fileUri' => $fileUri2, 'mimeType' => 'text/plain']],
+                        [
+                            'text' => $message,
+                        ],
+                    ],
+                ],
+            ],
+            'generationConfig' => [
+                'temperature' => 1,
+                'topK' => 64,
+                'topP' => 0.95,
+                'maxOutputTokens' => 8192,
+                'responseMimeType' => 'text/plain',
+            ],
+        ];
+    
+        try {
+            $response = $client->post($url, [
+                'headers' => ['Content-Type' => 'application/json'],
+                'json' => $jsonData,
+            ]);
+    
+            $responseData = json_decode($response->getBody()->getContents(), true);            
+            if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
+                // Return only the text part
+                return $responseData['candidates'][0]['content']['parts'][0]['text'];
+            } else {
+                throw new Exception("Text content not found in the response");
+            }
+        } catch (RequestException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            throw $e;
+        }
+    }
+
 
 }
 
