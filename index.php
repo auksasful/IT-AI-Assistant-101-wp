@@ -541,7 +541,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 sendModelMessage("**Task file:**<br>" . convert_path_to_url($current_task->task_file_clean));
                 if ($current_task->task_type == 'PDF') {
                     sendModelMessage("**Task summary:**<br>{$current_task->default_summary}");
-                    sendModelMessage("**Task self-check questions:**<br>{$current_task->default_self_check_questions}");
+                    // sendModelMessage("**Task self-check questions:**<br>{$current_task->default_self_check_questions}");
                 }
                 // call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language');
             }
@@ -564,7 +564,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif($input === 'task-questions') {
             // $filePath = urldecode($_POST['filePath']);
             $fileUri = urldecode($_POST['fileUri']);
-            call_embedded_ocr_pdf('Please write some self-check questions with answers from the PDF file in Lithuanian language', $fileUri);
+            $pdfReader = new PdfReader();
+            $system_prompt = "You create self-check questions from the text in lithuanian language like this:
+            Q1: Question one text
+            A1: Answer one text
+            Q2: Question two text
+            A2: Answer two text
+            Q3: Question three text
+            A3: Answer three text";
+            $prompt = 'Please write 20 self-check questions with answers from the PDF file in Lithuanian language.';
+            echo $pdfReader->analyzePdfSelfCheck($API_KEY, $fileUri, $prompt, $system_prompt);
+            //call_embedded_ocr_pdf('Please write some self-check questions with answers from the PDF file in Lithuanian language', $fileUri);
         }
         elseif($input === 'task-save') {
             //saveTask
@@ -644,6 +654,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Pokalbių robotas</title>
     <script src="https://cdn.jsdelivr.net/npm/marked@3.0.7/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
     <style>
         .section {
             display: flex;
@@ -1059,7 +1073,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .then(response => response.text())
             .then(text => {
                 document.getElementById('taskQuestions').value = text;
-                hideLoadingModal();
+                const questions = JSON.parse(text).questions;
+                const taskQuestionsElement = document.getElementById('taskQuestions');
+                createSelfCheckAccordion(questions, taskQuestionsElement);
+
+
                 // displayMessage(text, 'model');
                 // hideLoader();
                 // hideTypingIndicator();
@@ -1166,7 +1184,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (currentTaskJson.task_type === 'PDF') {
                 //hide file upload near chat message send button
                 document.getElementById('fileInput').style.display = 'none';
+                try {
+                    questions = JSON.parse(currentTaskJson.default_self_check_questions.replace(/\\\"/g, '"')).questions;
+                    waitForMessageBubblesToAddSelfCheckQuestions(questions);
+                } catch (e) {
+                    console.error('Failed to parse JSON or no self check questions in task:', e);
+                } 
             }
+        }
+
+        function waitForMessageBubblesToAddSelfCheckQuestions(questions) {
+            const interval = setInterval(() => {
+                const messageBubbles = document.querySelectorAll('.message-bubble.model');
+                if (messageBubbles.length > 0) {
+                    clearInterval(interval);
+                    const elementToAddAfter = messageBubbles[messageBubbles.length - 1].children[messageBubbles[messageBubbles.length - 1].children.length - 1];
+                    createSelfCheckAccordion(questions, elementToAddAfter);
+                }
+            }, 100); // Check every 0.1 seconds
         }
 
         function validateCorrectFileType() {
@@ -1395,6 +1430,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             closeClassModal();
         }
 
+        function createSelfCheckAccordion(questions, elementToAddAfter) {
+            const accordionContainer = document.createElement('div');
+            accordionContainer.id = 'accordion';
+
+            questions.forEach((q, index) => {
+                const card = document.createElement('div');
+                card.classList.add('card');
+
+                const cardHeader = document.createElement('div');
+                cardHeader.classList.add('card-header');
+                cardHeader.id = `heading${index}`;
+
+                const h5 = document.createElement('h5');
+                h5.classList.add('mb-0');
+
+                const button = document.createElement('button');
+                button.classList.add('btn', 'btn-link', 'collapsed');
+                button.setAttribute('data-toggle', 'collapse');
+                button.setAttribute('data-target', `#collapse${index}`);
+                button.setAttribute('aria-expanded', 'false');
+                button.setAttribute('aria-controls', `collapse${index}`);
+                button.innerText = q.question;
+
+                h5.appendChild(button);
+                cardHeader.appendChild(h5);
+                card.appendChild(cardHeader);
+
+                const collapseDiv = document.createElement('div');
+                collapseDiv.id = `collapse${index}`;
+                collapseDiv.classList.add('collapse');
+                collapseDiv.setAttribute('aria-labelledby', `heading${index}`);
+                collapseDiv.setAttribute('data-parent', '#accordion');
+
+                const cardBody = document.createElement('div');
+                cardBody.classList.add('card-body');
+                cardBody.innerText = q.answer;
+
+                collapseDiv.appendChild(cardBody);
+                card.appendChild(collapseDiv);
+                accordionContainer.appendChild(card);
+            });
+
+            elementToAddAfter.parentNode.insertBefore(accordionContainer, elementToAddAfter.nextSibling);
+            hideLoadingModal();
+        }
+
         userInput.addEventListener('keydown', function(event) {
             if (event.key === 'Enter') {
                 sendMessage();
@@ -1408,7 +1489,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 console.log('Chat history loaded');
                 getTasksList(1);
                 getCurrentTask();
-                console.log('currentTaskJson: ' + currentTaskJson);
             }, 2000); // 2000 milliseconds = 2 seconds
         });
         

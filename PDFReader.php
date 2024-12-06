@@ -293,11 +293,22 @@ class PdfReader
     }
 
 
-    public function analyzePdf($api_key, $fileUri, $message)
+    public function analyzePdf($api_key, $fileUri, $message, $system_prompt = "")
     {
         $client = new Client();
         $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        
+        if (empty($system_prompt)) {
+            $system_prompt = "You analyze the PDF and provide answer from it.";
+        }
         $jsonData = [
+            'systemInstruction' => [
+                'parts' => [
+                    [
+                        'text' => $system_prompt
+                    ],
+                ],
+            ],
             'contents' => [
                 [
                     'role' => 'user',
@@ -315,6 +326,92 @@ class PdfReader
                 'topP' => 0.95,
                 'maxOutputTokens' => 8192,
                 'responseMimeType' => 'text/plain',
+            ],
+        ];
+    
+        try {
+            $response = $client->post($url, [
+                'headers' => ['Content-Type' => 'application/json'],
+                'json' => $jsonData,
+            ]);
+    
+            $responseData = json_decode($response->getBody()->getContents(), true);
+    
+            if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
+                // Return only the text part
+                return $responseData['candidates'][0]['content']['parts'][0]['text'];
+            } else {
+                throw new Exception("Text content not found in the response");
+            }
+        } catch (RequestException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            throw $e;
+        }
+    }  
+
+    public function analyzePdfSelfCheck($api_key, $fileUri, $message, $system_prompt)
+    {
+        $file_questions = $this->analyzePdf($api_key, $fileUri, $message, $system_prompt);
+        $schema = [
+            'description' => 'List of questions and answers',
+            'type' => 'object',
+            'properties' => [
+                'questions' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'answer' => [
+                                'type' => 'string',
+                                'description' => 'Answer text',
+                                'nullable' => false,
+                            ],
+                            'order_number' => [
+                                'type' => 'number',
+                                'description' => 'Order number of the question',
+                                'nullable' => false,
+                            ],
+                            'question' => [
+                                'type' => 'string',
+                                'description' => 'Question text',
+                                'nullable' => false,
+                            ],
+                        ],
+                        'required' => ['answer', 'order_number', 'question'],
+                    ],
+                ],
+            ],
+            'required' => ['questions'],
+        ];
+        
+        $client = new Client();
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $jsonData = [
+            'systemInstruction' => [
+                'parts' => [
+                    [
+                        'text' => 'List all the questions based on the schema given.'
+                    ],
+                ],
+            ],
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => [
+                        [
+                            'text' => $file_questions,
+                        ],
+                    ],
+                ],
+            ],
+            'generationConfig' => [
+                'temperature' => 1,
+                'topK' => 64,
+                'topP' => 0.95,
+                'maxOutputTokens' => 8192,
+                'responseMimeType' => 'application/json',
+                'responseSchema' => $schema,
             ],
         ];
     
