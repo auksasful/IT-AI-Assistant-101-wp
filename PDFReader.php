@@ -444,11 +444,75 @@ class PdfReader
         $client = new Client();
         $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
         $jsonData = [
+            'systemInstruction' => [
+                'parts' => [
+                    [
+                        'text' => 'Compare the first file uploaded that is students and second that is the correct solution and try to make the asker understand the problem without exposing too much information about the final solution. Talk in Lithuanian.'
+                    ],
+                ],
+            ],
             'contents' => [
                 [
                     'role' => 'user',
                     'parts' => [
                         ['fileData' => ['fileUri' => $fileUri1, 'mimeType' => 'text/plain']],
+                        ['fileData' => ['fileUri' => $fileUri2, 'mimeType' => 'text/plain']],
+                        [
+                            'text' => $message,
+                        ],
+                    ],
+                ],
+            ],
+            'generationConfig' => [
+                'temperature' => 1,
+                'topK' => 64,
+                'topP' => 0.95,
+                'maxOutputTokens' => 8192,
+                'responseMimeType' => 'text/plain',
+            ],
+        ];
+    
+        try {
+            $response = $client->post($url, [
+                'headers' => ['Content-Type' => 'application/json'],
+                'json' => $jsonData,
+            ]);
+    
+            $responseData = json_decode($response->getBody()->getContents(), true);            
+            if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
+                // Return only the text part
+                return $responseData['candidates'][0]['content']['parts'][0]['text'];
+            } else {
+                throw new Exception("Text content not found in the response");
+            }
+        } catch (RequestException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            throw $e;
+        }
+    }
+
+    public function analyzeExcelQuestion($api_key, $fileUri, $fileUri2, $message, $fileUri3='')
+    {
+        error_log("Asking from Excel file...");
+        error_log("  File 1: {$fileUri}");
+        error_log("  File 2: {$fileUri2}");
+
+        $client = new Client();
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $jsonData = [
+            'systemInstruction' => [
+                'parts' => [
+                    [
+                        'text' => 'Compare the first file uploaded that is students and second that is the correct solution and try to make the asker understand the problem without exposing too much information about the final solution. Talk in Lithuanian.'
+                    ],
+                ],
+            ],
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => [
+                        ['fileData' => ['fileUri' => $fileUri, 'mimeType' => 'text/plain']],
                         ['fileData' => ['fileUri' => $fileUri2, 'mimeType' => 'text/plain']],
                         [
                             'text' => $message,

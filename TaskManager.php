@@ -95,20 +95,26 @@ class TaskManager {
         }
     }
 
-    public function get_student_task_solutions_by_task_id($task_id) {
-        $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_solution';
-        $sql = "SELECT * FROM $table_name WHERE task_id = %d";
-        $results = $this->db->get_results($this->db->prepare($sql, $task_id));
-        return $results;
-    }
+    // public function get_student_task_solutions_by_task_id($task_id) {
+    //     $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_solution';
+    //     $sql = "SELECT * FROM $table_name WHERE task_id = %d";
+    //     $results = $this->db->get_results($this->db->prepare($sql, $task_id));
+    //     return $results;
+    // }
 
-    public function get_student_task_solution($id) {
+    // public function get_student_task_solution($id) {
+    //     $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_solution';
+    //     $sql = "SELECT * FROM $table_name WHERE id = %d";
+    //     $result = $this->db->get_row($this->db->prepare($sql, $id));
+    //     return $result;
+    // }
+    public function get_first_student_task_solution($task_id, $class_id, $user_username) {
         $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_solution';
-        $sql = "SELECT * FROM $table_name WHERE id = %d";
-        $result = $this->db->get_row($this->db->prepare($sql, $id));
+        $sql = "SELECT * FROM $table_name WHERE task_id = %d AND class_id = %d AND user_username = %s LIMIT 1";
+        $result = $this->db->get_row($this->db->prepare($sql, $task_id, $class_id, $user_username));
         return $result;
     }
-
+    
     public function update_student_task_solution($id, $task_id, $class_id, $user_username, $solution_file = null, $solution_file_uri = null) {
         $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_solution';
         $this->db->update(

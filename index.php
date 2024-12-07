@@ -309,6 +309,7 @@ function uploadFile() {
         global $current_task;
         $PDFReader = new PDFReader();
         $folderPath = WP_CONTENT_DIR . '/ITAIAssistant101/' . $username . '/' . 'TASK' . $current_task->task_id;
+        error_log('folderPath when uploading: ' . $folderPath);
         if (!is_dir($folderPath)) {
             mkdir($folderPath, 0777, true);
         }
@@ -494,6 +495,15 @@ function call_embedded_ocr_pdf($message, $fileUri = '') {
 
 }
 
+function call_embedded_ocr_excel($message, $fileUri = '') { 
+    global $API_KEY;
+    $pdfReader = new PdfReader();
+    echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message);
+    return true;
+    // return $pdfReader->uploadAndDescribeFile($API_KEY, $filePath, 'downloaded_sc2.png');
+
+}
+
 function saveTask($name, $text, $type, $class_id, $file_clean = null, $file_correct = null, $file_uri = null, $correct_file_uri = null, $system_prompt = null, $default_summary = null, $default_self_check_questions = null) {
     global $taskManager;
     $taskManager->insert_task($name, $text, $type, $class_id, $file_clean, $file_correct, $file_uri, $correct_file_uri, $system_prompt, $default_summary, $default_self_check_questions);
@@ -510,16 +520,20 @@ function convert_path_to_url($full_path) {
     // Split the path to extract the domain name
     $path_parts = explode('/', $full_path);
 
+    // Find the index of the domain part
+    $domain_index = array_search('domains', $path_parts) + 1;
+    
     // Extract the relevant path after the domain
-    $relevant_path = array_slice($path_parts, 6);  // Adjust this according to your structure
+    $relevant_path = array_slice($path_parts, $domain_index + 2); // +2 to skip 'domains' and the domain name itself
 
-    // Construct the URL without encoding the domain and basic structure
-    $url = 'https://' . $path_parts[4] . '/' . implode('/', $relevant_path);
+    // Construct the base URL with the domain
+    $base_url = 'https://' . $path_parts[$domain_index] . '/';
 
-    // Encode only the parts of the URL that need it
-    $encoded_url = preg_replace_callback('/[^A-Za-z0-9\-\/]/', function($matches) {
-        return rawurlencode($matches[0]);
-    }, $url);
+    // Encode the relevant path parts
+    $encoded_path = implode('/', array_map('rawurlencode', $relevant_path));
+
+    // Construct the final URL
+    $encoded_url = $base_url . $encoded_path;
 
     return $encoded_url;
 }
@@ -536,11 +550,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // sendModelMessage(get_example_questions_from_pdf());
             // sendModelFile($current_task->getTaskFileClean());
             if ($current_task->task_id != null) {
-                sendModelMessage("**Task name:**<br>{$current_task->task_name}");
-                sendModelMessage("**Task text:**<br>{$current_task->task_text}");
-                sendModelMessage("**Task file:**<br>" . convert_path_to_url($current_task->task_file_clean));
+                sendModelMessage(" **Task name:**<br>{$current_task->task_name}");
+                sendModelMessage(" **Task text:**<br>{$current_task->task_text}");
+                sendModelMessage(" **Task file:**<br>" . convert_path_to_url($current_task->task_file_clean));
                 if ($current_task->task_type == 'PDF') {
-                    sendModelMessage("**Task summary:**<br>{$current_task->default_summary}");
+                    sendModelMessage(" **Task summary:**<br>{$current_task->default_summary}");
                     // sendModelMessage("**Task self-check questions:**<br>{$current_task->default_self_check_questions}");
                 }
                 // call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language');
@@ -633,6 +647,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $fileUri, $current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
                     }
                     call_embedded_ocr_pdf("Please answer to the user message {$input} from the file in Lithuanian", $fileUri);
+                }
+                elseif ($current_task->task_type == 'Excel') {
+                    // $excel_reader = new ExcelReader($current_task->task_file_clean);
+                    $pdfReader = new PdfReader();
+                    $taskManager = new TaskManager();
+                    // $excel_data = $excel_reader->readDataWithCoordinates();
+                    // $user_excel_string = print_r($excel_data, true);
+                    $student_solution = $taskManager->get_first_student_task_solution($current_task->task_id, $current_task->class_id, $username);
+                    //check if student solution exists
+                    $using_student_solution = false;
+                    if ($student_solution) {
+                        $using_student_solution = true;
+                    }
+                    $fileUri1 = $current_task->task_file_uri;
+                    $fileUri2 = $current_task->clean_task_file_uri;
+                    if($using_student_solution) {
+                        $student_solutionFileUri = $student_solution->solution_file_uri;
+                        if (!$pdfReader->fileExists($API_KEY, $student_solutionFileUri)) {
+                            $filePath  = $student_solution->solution_file;
+                            $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
+                            $fileName = pathinfo($filePath, PATHINFO_FILENAME);
+                            $excel_reader = new ExcelReader($filePath);
+                            $excel_data = $excel_reader->readDataWithCoordinates();
+                            // move excel_data to text file with the same name to the same path but the extension is .txt
+                            $textFilePath = str_replace($fileExtension, 'txt', $filePath);
+                            // $textFile = fopen($textFilePath, 'w');
+                            // fwrite($textFile, print_r($excel_data, true));
+                            // fclose($textFile);
+                            $student_solutionFileUri = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain');
+                            $taskManager->update_student_task_solution($student_solution->solution_id, $current_task->task_id, $current_task->class_id, $student_solution->user_username, $student_solution->solution_file, $student_solutionFileUri);
+                        }
+                    }
+                    else {
+                        if (!$pdfReader->fileExists($API_KEY, $fileUri1)) {
+                            $filePath  = $current_task->task_file_clean;
+                            $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
+                            $fileName = pathinfo($filePath, PATHINFO_FILENAME);
+                            $excel_reader = new ExcelReader($filePath);
+                            $excel_data = $excel_reader->readDataWithCoordinates();
+                            // move excel_data to text file with the same name to the same path but the extension is .txt
+                            $textFilePath = str_replace($fileExtension, 'txt', $filePath);
+                            // $textFile = fopen($textFilePath, 'w');
+                            // fwrite($textFile, print_r($excel_data, true));
+                            // fclose($textFile);
+                            $fileUri1 = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain');
+                            $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $fileUri1, $current_task->clean_task_file_uri,$current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
+                        }
+                    }
+
+                    if (!$pdfReader->fileExists($API_KEY, $fileUri2)) {
+                        $filePath  = $current_task->task_file_correct;
+                        $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
+                        $fileName = pathinfo($filePath, PATHINFO_FILENAME);
+                        $excel_reader = new ExcelReader($filePath);
+                        $excel_data = $excel_reader->readDataWithCoordinates();
+                        // move excel_data to text file with the same name to the same path but the extension is .txt
+                        $textFilePath = str_replace($fileExtension, 'txt', $filePath);
+                        // $textFile = fopen($textFilePath, 'w');
+                        // fwrite($textFile, print_r($excel_data, true));
+                        // fclose($textFile);
+                        $fileUri2 = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain');
+                        $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $current_task->task_file_uri, $fileUri2, $current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
+                    }
+
+                    if ($using_student_solution) {
+                        $fileUri1 = $student_solutionFileUri;
+                    }
+
+                    $response = $pdfReader->analyzeExcelQuestion($API_KEY, $fileUri1, $fileUri2, $input);
+                    echo $response;
                 }
                 else {
                     $response = processChatInput($input);
