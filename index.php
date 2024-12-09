@@ -336,15 +336,6 @@ function uploadFile() {
                 $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, $fileName . '.pdf', 'application/pdf');
                 return [$filePath, $fileUri];  
             }
-            
-            // $excel_reader = new ExcelReader($filePath);
-
-            // $excel_data = $excel_reader->readDataWithCoordinates();
-            // $user_excel_string = print_r($excel_data, true);
-            // $response = processChatInput("check-excel");
-            // // echo $response;
-            // error_log('resultsss:' . print_r($excel_data, true) . ' ' . $response);
-            // return $response;
         } else {
             return '';
         }
@@ -360,15 +351,6 @@ function call_embedded_pdf($user_message) {
     $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
     $pdfReader = new PdfReader();
     $text_array = $pdfReader->getTextFromPages($filePath);
-    // print_r($text_array);
-    // $embeddings = [];
-    // foreach ($text_array as $text) {
-    //     $embedding = embed_fn($text);
-    //     $embeddings[] = $embedding; 
-    // }
-
-    // Print the embeddings (or use them for further processing)
-    // print_r($embeddings); 
 
     // merge passages shorter than 500 words
     $text_array = array_reduce($text_array, function($carry, $text) {
@@ -391,9 +373,6 @@ function call_embedded_pdf($user_message) {
 
     // Find the best passage that matches the user's query
     $bestPassage = find_best_passage($user_message, $text_array);
-
-    // $user_message_embedding = embed_fn($user_message);
-    // print_r('best passage: ' . $bestPassage);
     return $bestPassage;
 
 }
@@ -427,10 +406,6 @@ function summarize_pdf() {
     foreach ($text_array as $text) {
         $summaries[] = processChatInput('summarize this: ' . $text);
     }
-        
-    // if (count($text_array) == 1 && str_word_count($text_array[0]) < 500) {
-    //     return $text_array[0];
-    // }
 
     //summarize all the summaries with processChatInput
     $final_summary = '';
@@ -471,10 +446,6 @@ function get_example_questions_from_pdf() {
     foreach ($text_array as $text) {
         $questions[] = processChatInput('generate 5 questions from this passage in lithuanian: ' . $text);
     }
-        
-    // if (count($text_array) == 1 && str_word_count($text_array[0]) < 500) {
-    //     return $text_array[0];
-    // }
 
     //summarize all the summaries with processChatInput
     $final_questions = '';
@@ -491,8 +462,6 @@ function call_embedded_ocr_pdf($message, $fileUri = '') {
     $pdfReader = new PdfReader();
     echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message);
     return true;
-    // return $pdfReader->uploadAndDescribeFile($API_KEY, $filePath, 'downloaded_sc2.png');
-
 }
 
 function call_embedded_ocr_excel($message, $fileUri = '') { 
@@ -500,8 +469,6 @@ function call_embedded_ocr_excel($message, $fileUri = '') {
     $pdfReader = new PdfReader();
     echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message);
     return true;
-    // return $pdfReader->uploadAndDescribeFile($API_KEY, $filePath, 'downloaded_sc2.png');
-
 }
 
 function saveTask($name, $text, $type, $class_id, $file_clean = null, $file_correct = null, $file_uri = null, $correct_file_uri = null, $system_prompt = null, $default_summary = null, $default_self_check_questions = null) {
@@ -573,27 +540,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['message'])) {
         $input = $_POST['message'];
         if ($input === 'intro-message') {
-            // sendModelMessage($current_task->getPrompts()[0]);
-            // sendModelMessage($current_task->getTaskFileClean());
-            // sendModelMessage(summarize_pdf());
-            // sendModelMessage(get_example_questions_from_pdf());
-            // sendModelFile($current_task->getTaskFileClean());
             if ($current_task->task_id != null) {
                 sendModelMessage(" **Task name:**<br>{$current_task->task_name}<br>");
                 sendModelMessage(" **Task text:**<br>{$current_task->task_text}<br>");
                 sendModelMessage(" **Task file:**<br>" . convert_path_to_url($current_task->task_file_clean));
                 if ($current_task->task_type == 'PDF') {
                     sendModelMessage(" **Task summary:**<br>{$current_task->default_summary}<br>");
-                    // sendModelMessage("**Task self-check questions:**<br>{$current_task->default_self_check_questions}");
                 }
-                // call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language');
             }
             else {
                 sendModelMessage('No task selected');
             }
         }
         elseif ($input === 'task-summary') {
-            // $filePath = urldecode($_POST['filePath']);
             $fileUri = urldecode($_POST['fileUri']);
             if (file_exists($filePath)) {
                 error_log("File exists.");
@@ -605,7 +564,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language', $fileUri);
         }
         elseif($input === 'task-questions') {
-            // $filePath = urldecode($_POST['filePath']);
             $fileUri = urldecode($_POST['fileUri']);
             $pdfReader = new PdfReader();
             $system_prompt = "You create self-check questions from the text in lithuanian language like this:
@@ -617,7 +575,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             A3: Answer three text";
             $prompt = 'Please write 20 self-check questions with answers from the PDF file in Lithuanian language.';
             echo $pdfReader->analyzePdfSelfCheck($API_KEY, $fileUri, $prompt, $system_prompt);
-            //call_embedded_ocr_pdf('Please write some self-check questions with answers from the PDF file in Lithuanian language', $fileUri);
         }
         elseif($input === 'task-save') {
             // Get the JSON data from the request body
@@ -687,11 +644,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     call_embedded_ocr_pdf("Please answer to the user message {$input} from the file in Lithuanian", $fileUri);
                 }
                 elseif ($current_task->task_type == 'Excel') {
-                    // $excel_reader = new ExcelReader($current_task->task_file_clean);
                     $pdfReader = new PdfReader();
                     $taskManager = new TaskManager();
-                    // $excel_data = $excel_reader->readDataWithCoordinates();
-                    // $user_excel_string = print_r($excel_data, true);
                     $student_solution = $taskManager->get_first_student_task_solution($current_task->task_id, $current_task->class_id, $username);
                     //check if student solution exists
                     $using_student_solution = false;
@@ -710,9 +664,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $excel_data = $excel_reader->readDataWithCoordinates();
                             // move excel_data to text file with the same name to the same path but the extension is .txt
                             $textFilePath = str_replace($fileExtension, 'txt', $filePath);
-                            // $textFile = fopen($textFilePath, 'w');
-                            // fwrite($textFile, print_r($excel_data, true));
-                            // fclose($textFile);
                             $student_solutionFileUri = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain');
                             $taskManager->update_student_task_solution($student_solution->solution_id, $current_task->task_id, $current_task->class_id, $student_solution->user_username, $student_solution->solution_file, $student_solutionFileUri);
                         }
@@ -726,9 +677,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $excel_data = $excel_reader->readDataWithCoordinates();
                             // move excel_data to text file with the same name to the same path but the extension is .txt
                             $textFilePath = str_replace($fileExtension, 'txt', $filePath);
-                            // $textFile = fopen($textFilePath, 'w');
-                            // fwrite($textFile, print_r($excel_data, true));
-                            // fclose($textFile);
                             $fileUri1 = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain');
                             $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $fileUri1, $current_task->clean_task_file_uri,$current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
                         }
@@ -742,9 +690,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $excel_data = $excel_reader->readDataWithCoordinates();
                         // move excel_data to text file with the same name to the same path but the extension is .txt
                         $textFilePath = str_replace($fileExtension, 'txt', $filePath);
-                        // $textFile = fopen($textFilePath, 'w');
-                        // fwrite($textFile, print_r($excel_data, true));
-                        // fclose($textFile);
                         $fileUri2 = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain');
                         $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $current_task->task_file_uri, $fileUri2, $current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
                     }
@@ -896,47 +841,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <button class="button is-link" onclick="openClassModal()">Select Class</button>
                 <button class="button is-primary" onclick="addTask()">Add Task</button>
             </div>
-            <div class="task-list">
-                <!-- <div class="task-item" onclick="reloadWithTaskId(1)">Task 1</div>
-                <div class="task-item" onclick="reloadWithTaskId(2)">Task 2</div>
-                <div class="task-item" onclick="reloadWithTaskId(3)">Task 3</div> -->
-
-                <script>
-                    function reloadWithTaskId(taskId) {
-                        window.location.href = window.location.pathname + '?task_id=' + taskId;
-                    }
-                </script>
-            </div>
+            <div class="task-list"></div>
             <div class="bottom-left-buttons">
             <div class="settings-menu">
                 <button class="button is-primary">Settings</button>
                 <button class="button is-danger" onclick="confirmLogout()">Logout</button>
-                <script>
-                    function confirmLogout() {
-                        bootbox.confirm({
-                            title: "Logout Confirmation",
-                            message: "Are you sure you want to logout? This cannot be undone.",
-                            buttons: {
-                                cancel: {
-                                    label: '<i class="fa fa-times"></i> Cancel'
-                                },
-                                confirm: {
-                                    label: '<i class="fa fa-check"></i> Confirm'
-                                }
-                            },
-                            callback: function (result) {
-                                if (result) {
-                                    window.location.href = "<?php echo home_url('/itaiassistant101/logout'); ?>";
-                                }
-                            }
-                        });
-                    }
-                </script>
             </div>
             </div>
         </div>
         <div class="container">
-            <!-- <h1 class="title">Pokalbių robotas</h1> -->
             <div id="chat-container" class="box"></div>
             <div id="typing-indicator">Assistant is typing...</div>
             <div class="field is-grouped">
@@ -952,20 +865,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="file" class="custom-file-input" id="fileInput" accept=".xls,.xlsx" onchange="uploadFile()">
                     <label class="custom-file-label" for="fileInput">Upload Excel file from task once done</label>
                 </div>
-                <script>
-                    document.getElementById('fileInput').addEventListener('change', function() {
-                        var fileName = this.files[0].name;
-                        var nextSibling = this.nextElementSibling;
-                        nextSibling.innerText = fileName;
-                    });
-                </script>
             </p>
             <div id="loader">
                 <progress class="progress is-small is-primary" max="100"></progress>
             </div>
         </div>
     </section>
-    <!-- TODO add file upload and db field for uploaded file path, link to php and sql, add auto fill with gemini -->
     <!-- Add Task Modal -->
     <div class="modal" id="addTaskModal">
     <div class="modal-background"></div>
@@ -998,13 +903,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="control">
                         <input type="file" class="custom-file-input" id="taskFile" accept=".pdf,.xls,.xlsx" onchange="validateFileType()">
                         <label class="custom-file-label" for="taskFile">Upload file for the task</label>
-                        <script>
-                            document.getElementById('taskFile').addEventListener('change', function() {
-                                var fileName = this.files[0].name;
-                                var nextSibling = this.nextElementSibling;
-                                nextSibling.innerText = fileName;
-                            });
-                        </script>
                     </div>
                 </div>
                 <div class="excel-field">
@@ -1013,13 +911,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="control">
                             <input type="file" class="custom-file-input" id="correctTaskFile" accept=".pdf,.xls,.xlsx" onchange="validateCorrectFileType()">
                             <label class="custom-file-label" for="correctTaskFile">Upload correct solution file for the task</label>
-                            <script>
-                                document.getElementById('correctTaskFile').addEventListener('change', function() {
-                                    var fileName = this.files[0].name;
-                                    var nextSibling = this.nextElementSibling;
-                                    nextSibling.innerText = fileName;
-                                });
-                            </script>
                         </div>
                     </div>
                 </div>
@@ -1192,7 +1083,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function sendIntroMessage() {
-            // displayMessage('intro-message', 'user');
             showLoader();
             showTypingIndicator();
             fetch('', {
@@ -1205,7 +1095,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .then(response => response.text())
             .then(text => {
                 displayMessage(text, 'model');
-                // displayFileMessage('Task 1 file', text, 'model');
                 hideLoader();
                 hideTypingIndicator();
             })
@@ -1225,8 +1114,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function writeTaskSummary() {
-            // showLoader();
-            // showTypingIndicator();
             showLoadingModal();
             fetch('', {
                 method: 'POST',
@@ -1239,21 +1126,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .then(text => {
                 document.getElementById('taskSummary').value = text;
                 hideLoadingModal();
-                // displayMessage(text, 'model');
-                // hideLoader();
-                // hideTypingIndicator();
             })
             .catch(error => {
                 console.error('An error occurred:', error);
                 hideLoadingModal();
-                // hideLoader();
-                // hideTypingIndicator();
             });
         }
 
         function writeTaskQuestions() {
-            // showLoader();
-            // showTypingIndicator();
             showLoadingModal();
             fetch('', {
                 method: 'POST',
@@ -1269,16 +1149,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const taskQuestionsElement = document.getElementById('taskQuestions');
                 createSelfCheckAccordion(questions, taskQuestionsElement);
                 hideLoadingModal();
-
-                // displayMessage(text, 'model');
-                // hideLoader();
-                // hideTypingIndicator();
             })
             .catch(error => {
                 console.error('An error occurred:', error);
                 hideLoadingModal();
-                // hideLoader();
-                // hideTypingIndicator();
             });
         }
 
@@ -1314,9 +1188,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         hideLoader();
                         hideTypingIndicator();
                         bootbox.alert("File uploaded successfully");
-                        // console.log(result);
-                        // displayMessage(result, 'model');
-                        // alert('File uploaded successfully');
                     })
                     .catch(error => {
                         console.error('Error:', error);
@@ -1361,8 +1232,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 result = JSON.parse(result);
                 currentTaskFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
                 currentTaskFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
-                // currentTaskFilePath = result.replace(/(\r\n|\n|\r)/gm, "").split(",")[0];
-                // currentTaskFileUri = result.replace(/(\r\n|\n|\r)/gm, "").split(",")[1];
                 hideLoadingModal();
                 bootbox.alert("File uploaded successfully");
 
@@ -1431,9 +1300,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 result = JSON.parse(result);
                 currentCorrectTaskFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
                 currentCorrectTaskFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
-                // alert(currentCorrectTaskFileUri);
-                // currentTaskFilePath = result.replace(/(\r\n|\n|\r)/gm, "").split(",")[0];
-                // currentTaskFileUri = result.replace(/(\r\n|\n|\r)/gm, "").split(",")[1];
                 hideLoadingModal();
                 bootbox.alert("File uploaded successfully");
 
@@ -1823,6 +1689,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             elementToAddAfter.parentNode.insertBefore(accordionContainer, strongText.nextSibling);
             hideLoadingModal();
         }
+
+        function reloadWithTaskId(taskId) {
+            window.location.href = window.location.pathname + '?task_id=' + taskId;
+        }
+
+        function confirmLogout() {
+            bootbox.confirm({
+                title: "Logout Confirmation",
+                message: "Are you sure you want to logout? This cannot be undone.",
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> Cancel'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> Confirm'
+                    }
+                },
+                callback: function (result) {
+                    if (result) {
+                        window.location.href = "<?php echo home_url('/itaiassistant101/logout'); ?>";
+                    }
+                }
+            });
+        }
+
+        document.getElementById('fileInput').addEventListener('change', function() {
+            var fileName = this.files[0].name;
+            var nextSibling = this.nextElementSibling;
+            nextSibling.innerText = fileName;
+        });
+
+        document.getElementById('taskFile').addEventListener('change', function() {
+            var fileName = this.files[0].name;
+            var nextSibling = this.nextElementSibling;
+            nextSibling.innerText = fileName;
+        });
+
+        document.getElementById('correctTaskFile').addEventListener('change', function() {
+            var fileName = this.files[0].name;
+            var nextSibling = this.nextElementSibling;
+            nextSibling.innerText = fileName;
+        });
 
         userInput.addEventListener('keydown', function(event) {
             if (event.key === 'Enter') {
