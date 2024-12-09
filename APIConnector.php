@@ -63,7 +63,7 @@ class ApiConnector {
         $payload = [
             'iss' => 'your_issuer', // Replace with your issuer
             'iat' => time(),
-            'exp' => time() + (60 * 60), // Token valid for 1 hour
+            'exp' => time() + 60 * 60 * 24 * 30, // Token valid for 1 month
             'sub' => 'user_id', // Replace with the user ID or other identifier
             "data" => [
                 "username" => $username,

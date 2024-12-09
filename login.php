@@ -23,14 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $surname = sanitize_text_field($_POST['user_surname']);
             $password = sanitize_text_field($_POST['password']);
             if(!$user_manager->is_api_key_new($api_key)){
-                echo 'API key already in use';
+                echo "<script>alert('API key already in use')</script>";
                 wp_redirect(home_url('/itaiassistant101/login'));
                 exit();
             }
             $credentials = $user_manager->insert_user_with_generated_credentials($name, $surname, 'teacher', $password, $api_key, '');
             $jwt_token = $api_connector->test_connection($credentials['username'], $credentials['user_role'], true);
             if(!$jwt_token){
-                echo 'Failed to connect to API';
+                echo "<script>alert('Failed to connect to API')</script>";
                 $user_manager->delete_user($credentials['username']);
                 wp_redirect(home_url('/itaiassistant101/login'));
                 exit();
@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $surname = sanitize_text_field($_POST['user_surname']);
             $password = sanitize_text_field($_POST['password']);
             if(!$user_manager->is_api_key_new($api_key)){
-                echo 'API key already in use';
+                echo "<script>alert('API key already in use')</script>";
                 wp_redirect(home_url('/itaiassistant101/login'));
                 exit();
             }
@@ -86,11 +86,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         } else {
             error_log('Invalid username or password');
-            echo 'Invalid username or password';
+            echo "<script>alert('Invalid username or password')</script>";
                 
             $login_attempts = $user_manager->track_login_attempt($username);
             if($login_attempts > 10){
-                echo 'Too many login attempts, wait 10 minutes';
+                echo "<script>alert('Too many login attempts, wait 10 minutes')</script>";
                 wp_redirect(home_url('/itaiassistant101/login'));
                 exit();
             }
@@ -158,6 +158,9 @@ if (isset($_SESSION['jwt_token'])) {
         .alert {
             margin-top: 20px;
         }
+        #show_hide_api_key a {
+            padding: 0.25em;
+        }
     </style>
 </head>
 <body>
@@ -174,7 +177,12 @@ if (isset($_SESSION['jwt_token'])) {
         <form method="POST">
             <div class="form-group">
                 <label for="api_key">API Key (For Teacher Registration):</label>
-                <input type="text" id="api_key" name="api_key" class="form-control">
+                <div class="input-group" id="show_hide_api_key">
+                    <input class="form-control" id="api_key" name="api_key" type="password">
+                    <div class="input-group-addon">
+                        <a href=""><i class="fa fa-eye-slash" aria-hidden="true"></i></a>
+                    </div>
+                </div>
             </div>
             <div class="form-group">
                 <label for="user_name">Name:</label>
@@ -214,17 +222,30 @@ if (isset($_SESSION['jwt_token'])) {
 
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootbox.js/5.5.2/bootbox.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootbox.js/5.5.2/bootbox.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
 <script>
     $(document).ready(function() {
-        function showError(message) {
-            var alertHtml = '<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
-                            message +
-                            '<button type="button" class="close" data-dismiss="alert" aria-label="Close">' +
-                            '<span aria-hidden="true">&times;</span>' +
-                            '</button>' +
-                            '</div>';
-            $('.container').prepend(alertHtml);
-        }
+
+        // $('form').on('submit', function(event) {
+        //     event.preventDefault();
+        //     var form = $(this);
+        //     $.ajax({
+        //         type: form.attr('method'),
+        //         url: form.attr('action'),
+        //         data: form.serialize(),
+        //         success: function(response) {
+        //             if (response.error) {
+        //                 bootbox.alert(response.message);
+        //             }
+        //         },
+        //         error: function() {
+        //             bootbox.alert('An error occurred. Please try again.');
+        //         }
+        //     });
+        // });
 
         $('#itaiassistant101_showLogin').click(function() {
             $('#itaiassistant101_registerForm').hide();
@@ -272,6 +293,19 @@ if (isset($_SESSION['jwt_token'])) {
         $('#itaiassistant101_showChangePasswordFormRegister').click(function() {
             $('#itaiassistant101_registerForm').hide();
             $('#itaiassistant101_loginForm').hide();
+        });
+
+        $("#show_hide_api_key a").on('click', function(event) {
+            event.preventDefault();
+            if($('#show_hide_api_key input').attr("type") == "text"){
+                $('#show_hide_api_key input').attr('type', 'password');
+                $('#show_hide_api_key i').addClass( "fa-eye-slash" );
+                $('#show_hide_api_key i').removeClass( "fa-eye" );
+            }else if($('#show_hide_api_key input').attr("type") == "password"){
+                $('#show_hide_api_key input').attr('type', 'text');
+                $('#show_hide_api_key i').removeClass( "fa-eye-slash" );
+                $('#show_hide_api_key i').addClass( "fa-eye" );
+            }
         });
     });
 </script>

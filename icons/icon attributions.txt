@@ -1,0 +1,3 @@
+pdf - <a href="https://www.flaticon.com/free-icons/pdf" title="pdf icons">Pdf icons created by Roman Káčerek - Flaticon</a>
+python - <a href="https://www.flaticon.com/free-icons/python" title="python icons">Python icons created by Freepik - Flaticon</a>
+excel - <a href="https://www.flaticon.com/free-icons/excel" title="excel icons">Excel icons created by Roman Káčerek - Flaticon</a>

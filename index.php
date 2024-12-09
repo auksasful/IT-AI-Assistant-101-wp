@@ -541,6 +541,35 @@ function convert_path_to_url($full_path) {
 
 // Main execution logic
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $json = file_get_contents('php://input'); $data = json_decode($json, true);
+    if ($json !== '') {
+        $data = json_decode($json, true); 
+        if (isset($data['message'])) { 
+            $input = $data['message'];
+
+            if($input === 'task-save') { 
+                // Access the data from the decoded JSON 
+                $name = $data['name']; 
+                $text = $data['text']; 
+                $type = $data['type']; 
+                $class_id = $data['class_id']; 
+                $file_clean = $data['file_clean']; 
+                $file_correct = $data['file_correct']; 
+                $file_uri = $data['file_uri']; 
+                $correct_file_uri = $data['correct_file_uri']; 
+                $system_prompt = 'You are a helpful and informative bot that answers questions in Lithuanian language using text from the file.'; 
+                $default_summary = $data['default_summary']; 
+                $default_self_check_questions = $data['default_self_check_questions']; 
+                // Log the self-check questions 
+                error_log('default_self_check_questions in PHP: ' . $default_self_check_questions); 
+                // Call the saveTask function with the data 
+                saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $file_uri, $correct_file_uri, $system_prompt, $default_summary, $default_self_check_questions); 
+            }
+        }
+
+    }
+
+
     if (isset($_POST['message'])) {
         $input = $_POST['message'];
         if ($input === 'intro-message') {
@@ -550,11 +579,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // sendModelMessage(get_example_questions_from_pdf());
             // sendModelFile($current_task->getTaskFileClean());
             if ($current_task->task_id != null) {
-                sendModelMessage(" **Task name:**<br>{$current_task->task_name}");
-                sendModelMessage(" **Task text:**<br>{$current_task->task_text}");
+                sendModelMessage(" **Task name:**<br>{$current_task->task_name}<br>");
+                sendModelMessage(" **Task text:**<br>{$current_task->task_text}<br>");
                 sendModelMessage(" **Task file:**<br>" . convert_path_to_url($current_task->task_file_clean));
                 if ($current_task->task_type == 'PDF') {
-                    sendModelMessage(" **Task summary:**<br>{$current_task->default_summary}");
+                    sendModelMessage(" **Task summary:**<br>{$current_task->default_summary}<br>");
                     // sendModelMessage("**Task self-check questions:**<br>{$current_task->default_self_check_questions}");
                 }
                 // call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language');
@@ -591,20 +620,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             //call_embedded_ocr_pdf('Please write some self-check questions with answers from the PDF file in Lithuanian language', $fileUri);
         }
         elseif($input === 'task-save') {
-            //saveTask
-            $name = $_POST['name'];
-            $text = $_POST['text'];
-            $type = $_POST['type'];
-            $class_id = $_POST['class_id'];
-            $file_clean = urldecode($_POST['file_clean']);
-            $file_correct = urldecode($_POST['file_correct']);
-            $file_uri = urldecode(string: $_POST['file_uri']);
-            $correct_file_uri = urldecode($_POST['correct_file_uri']);
+            // Get the JSON data from the request body
+            $json = file_get_contents('php://input');
+            $data = json_decode($json, true);
+        
+            // Access the data from the decoded JSON
+            $name = $data['name'];
+            $text = $data['text'];
+            $type = $data['type'];
+            $class_id = $data['class_id'];
+            $file_clean = $data['file_clean'];
+            $file_correct = $data['file_correct'];
+            $file_uri = $data['file_uri'];
+            $correct_file_uri = $data['correct_file_uri'];
             $system_prompt = 'You are a helpful and informative bot that answers questions in lithuanian language using text from the file.';
-            $default_summary = $_POST['default_summary'];
-            $default_self_check_questions = $_POST['default_self_check_questions'];
+            $default_summary = $data['default_summary'];
+            $default_self_check_questions = $data['default_self_check_questions'];
+        
+            // Log the self-check questions
+            error_log('default_self_check_questions in PHP: ' . $default_self_check_questions);
+        
+            // Call the saveTask function with the data
             saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $file_uri, $correct_file_uri, $system_prompt, $default_summary, $default_self_check_questions);
-        }
+        }        
         elseif($input === 'task-list') {
             $class_id = $_POST['class_id'];
             $tasks = getTasksByClassId($class_id);
@@ -742,61 +780,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootbox.js/6.0.0/bootbox.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
+        .card .btn.btn-link.collapsed {
+            text-align: left;
+        }
+        .card .btn.btn-link {
+            text-align: left;
+        }
         .section {
             display: flex;
+            padding: 0% !important;
         }
         .left-panel {
-            width: 15%;
-            height: 100vh;
+            width: 30%;
+            height: 85vh;
             background-color: #f5f5f5;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
         }
         .container {
-            width: 85%;
-            margin-left: 1rem;
+            width: 70%;
+            padding-left: 0.1rem !important;
+            padding-right: 0px !important;
         }
-        .class-selector, .task-list, .settings-menu {
+        .top-left-buttons, .task-list, .settings-menu {
+            padding: 0.2rem;
+        }
+        .top-left-buttons {
             padding: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-start;
+        }
+        
+        .top-left-buttons .button {
+            flex: none;
+            padding-left: 0.6em !important;
+            padding-right: 0.6em !important;
         }
         .settings-menu {
             padding: 1rem;
-            /* display: flex; */
-            justify-content: space-between;
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-start;
         }
-
+        
         .settings-menu .button {
-            flex: 1;
-            margin-right: 0.5rem;
-        }
-
-        .settings-menu .button:last-child {
-            margin-right: 0;
-        }
-        #task-addition {
-            margin-top: 1rem;
-        }
-        #class-selection .button {
-            background-color: #3273dc; /* Blue color for class selection button */
-            color: white;
-        }
-
-        #task-addition .button {
-            background-color: #00d1b2; /* Green color for task addition button */
-            color: white;
+            flex: none;
+            padding-left: 0.6em !important;
+            padding-right: 0.6em !important;
         }
         .task-list {
             flex-grow: 1;
             overflow-y: auto;
+            height: 70%;
+        }
+        .top-left-buttons {
+            height: 15%;
+        }
+        .bottom-left-buttons {
+            height: 15%;
         }
         .task-item {
-            padding: 0.5rem;
+            padding: 0.3rem;
             cursor: pointer;
         }
         .task-item:hover {
             background-color: #e0e0e0;
+        }
+        .task-item.selected {
+            background-color: #d3d3d3;
         }
         .message-container {
             display: flex;
@@ -836,12 +892,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <section class="section">
         <div class="left-panel">
-            <div id="class-selection">
+            <div class="top-left-buttons">
                 <button class="button is-link" onclick="openClassModal()">Select Class</button>
-            </div>
-            <div id="task-addition">
                 <button class="button is-primary" onclick="addTask()">Add Task</button>
-            </div>  
+            </div>
             <div class="task-list">
                 <!-- <div class="task-item" onclick="reloadWithTaskId(1)">Task 1</div>
                 <div class="task-item" onclick="reloadWithTaskId(2)">Task 2</div>
@@ -853,12 +907,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 </script>
             </div>
+            <div class="bottom-left-buttons">
             <div class="settings-menu">
                 <button class="button is-primary">Settings</button>
+                <button class="button is-danger" onclick="confirmLogout()">Logout</button>
+                <script>
+                    function confirmLogout() {
+                        bootbox.confirm({
+                            title: "Logout Confirmation",
+                            message: "Are you sure you want to logout? This cannot be undone.",
+                            buttons: {
+                                cancel: {
+                                    label: '<i class="fa fa-times"></i> Cancel'
+                                },
+                                confirm: {
+                                    label: '<i class="fa fa-check"></i> Confirm'
+                                }
+                            },
+                            callback: function (result) {
+                                if (result) {
+                                    window.location.href = "<?php echo home_url('/itaiassistant101/logout'); ?>";
+                                }
+                            }
+                        });
+                    }
+                </script>
+            </div>
             </div>
         </div>
         <div class="container">
-            <h1 class="title">Pokalbių robotas</h1>
+            <!-- <h1 class="title">Pokalbių robotas</h1> -->
             <div id="chat-container" class="box"></div>
             <div id="typing-indicator">Assistant is typing...</div>
             <div class="field is-grouped">
@@ -868,10 +946,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p class="control">
                     <button class="button is-primary" onclick="sendMessage()">Send</button>
                 </p>
-                <p class="control">
-                    <input type="file" id="fileInput" accept=".xls,.xlsx" onchange="uploadFile()">
-                </p>
             </div>
+            <p class="control">
+                <div id="fileInputDiv" class="custom-file">
+                    <input type="file" class="custom-file-input" id="fileInput" accept=".xls,.xlsx" onchange="uploadFile()">
+                    <label class="custom-file-label" for="fileInput">Upload Excel file from task once done</label>
+                </div>
+                <script>
+                    document.getElementById('fileInput').addEventListener('change', function() {
+                        var fileName = this.files[0].name;
+                        var nextSibling = this.nextElementSibling;
+                        nextSibling.innerText = fileName;
+                    });
+                </script>
+            </p>
             <div id="loader">
                 <progress class="progress is-small is-primary" max="100"></progress>
             </div>
@@ -908,14 +996,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="field">
                     <label class="label">Upload File</label>
                     <div class="control">
-                        <input type="file" id="taskFile" accept=".pdf,.xls,.xlsx" onchange="validateFileType()">
+                        <input type="file" class="custom-file-input" id="taskFile" accept=".pdf,.xls,.xlsx" onchange="validateFileType()">
+                        <label class="custom-file-label" for="taskFile">Upload file for the task</label>
+                        <script>
+                            document.getElementById('taskFile').addEventListener('change', function() {
+                                var fileName = this.files[0].name;
+                                var nextSibling = this.nextElementSibling;
+                                nextSibling.innerText = fileName;
+                            });
+                        </script>
                     </div>
                 </div>
                 <div class="excel-field">
                     <div class="field">
                         <label class="label">Upload Correct Exercise File</label>
                         <div class="control">
-                            <input type="file" id="correctTaskFile" accept=".pdf,.xls,.xlsx" onchange="validateCorrectFileType()">
+                            <input type="file" class="custom-file-input" id="correctTaskFile" accept=".pdf,.xls,.xlsx" onchange="validateCorrectFileType()">
+                            <label class="custom-file-label" for="correctTaskFile">Upload correct solution file for the task</label>
+                            <script>
+                                document.getElementById('correctTaskFile').addEventListener('change', function() {
+                                    var fileName = this.files[0].name;
+                                    var nextSibling = this.nextElementSibling;
+                                    nextSibling.innerText = fileName;
+                                });
+                            </script>
                         </div>
                     </div>
                 </div>
@@ -929,7 +1033,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div id="step2" style="display: none;">
                 <p><strong>Task Name:</strong> <span id="displayTaskName"></span></p>
                 <p><strong>Task Type:</strong> <span id="displayTaskType"></span></p>
-                <p><strong>Uploaded File:</strong> <span id="displayTaskFile"></span></p>  
+                <p><strong>Uploaded File:</strong> <span id="displayTaskFile"></span></p>
+                <div class="excel-field">
+                    <p><strong>Uploaded File:</strong> <span id="displayTaskCorrectFile"></span></p>
+                </div> 
                 <p><strong>Task Description:</strong> <span id="displayTaskDescription"></span></p>
             </div>
             <div id="step3" style="display: none;">
@@ -1030,8 +1137,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Convert URLs in the text to clickable links
             const urlRegex = /(https?:\/\/[^\s]+)/g;
+            const urlText = 'Click URL';
             const html = marked(text.replace(urlRegex, function(url) {
-                return `<a href="${url}" target="_blank">${url}</a>`;
+                return `<a href="${url}" target="_blank" class="btn btn-primary">${urlText}</a><br>`;
             }));
 
             messageBubble.innerHTML = html;
@@ -1160,7 +1268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const questions = JSON.parse(text).questions;
                 const taskQuestionsElement = document.getElementById('taskQuestions');
                 createSelfCheckAccordion(questions, taskQuestionsElement);
-
+                hideLoadingModal();
 
                 // displayMessage(text, 'model');
                 // hideLoader();
@@ -1172,10 +1280,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // hideLoader();
                 // hideTypingIndicator();
             });
-        }
-
-        function showMessage(task) {
-            alert('You clicked on ' + task);
         }
 
         function uploadFile() {
@@ -1209,19 +1313,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         displayMessage(result, 'model');
                         hideLoader();
                         hideTypingIndicator();
+                        bootbox.alert("File uploaded successfully");
                         // console.log(result);
                         // displayMessage(result, 'model');
                         // alert('File uploaded successfully');
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        alert('File upload failed');
+                        bootbox.alert("File upload failed");
+                        document.getElementById('fileInput').value = ''; // Clear the input field
                     });
                 } else {
-                    alert('Please upload an XLS or XLSX file');
+                    bootbox.alert("Please upload an XLS or XLSX file");
+                    document.getElementById('fileInput').value = ''; // Clear the input field
                 }
             } else {
-                alert('No file selected');
+                bootbox.alert("No file selected");
             }
         }
 
@@ -1234,10 +1341,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ((taskType === 'PDF' && fileExtension !== 'pdf') || 
                 (taskType === 'Excel' && (fileExtension !== 'xls' && fileExtension !== 'xlsx'))) {
-                alert('Please upload a valid ' + taskType + ' file.');
+                bootbox.alert('Please upload a valid ' + taskType + ' file.');
                 fileInput.value = ''; // Clear the input
+                return;
             }
-
+            showLoadingModal();
             // Create form data and append file
             var formData = new FormData();
             formData.append('file', file);
@@ -1255,11 +1363,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 currentTaskFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
                 // currentTaskFilePath = result.replace(/(\r\n|\n|\r)/gm, "").split(",")[0];
                 // currentTaskFileUri = result.replace(/(\r\n|\n|\r)/gm, "").split(",")[1];
+                hideLoadingModal();
+                bootbox.alert("File uploaded successfully");
 
             })
             .catch(error => {
                 console.error('Error:', error);
-                // alert('File upload failed');
+                hideLoadingModal();
+                bootbox.alert('File upload failed');
+                document.getElementById('taskFile').value = ''; // Clear the input field
+                document.getElementById('taskFile').nextElementSibling.innerText = 'Upload file for the task';
             });
         }
 
@@ -1267,9 +1380,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function updateChatUI() {
             if (currentTaskJson.task_type === 'PDF') {
                 //hide file upload near chat message send button
-                document.getElementById('fileInput').style.display = 'none';
+                document.getElementById('fileInputDiv').style.display = 'none';
                 try {
-                    questions = JSON.parse(currentTaskJson.default_self_check_questions.replace(/\\\"/g, '"')).questions;
+                    console.log('json before parse:', currentTaskJson.default_self_check_questions);
+                    questions = JSON.parse(currentTaskJson.default_self_check_questions).questions; //.replace(/\\\"/g, '"')).questions;
                     waitForMessageBubblesToAddSelfCheckQuestions(questions);
                 } catch (e) {
                     console.error('Failed to parse JSON or no self check questions in task:', e);
@@ -1296,10 +1410,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const fileExtension = fileName.split('.').pop().toLowerCase();
 
             if ((taskType === 'Excel' && (fileExtension !== 'xls' && fileExtension !== 'xlsx'))) {
-                alert('Please upload a valid ' + taskType + ' file.');
+                bootbox.alert('Please upload a valid ' + taskType + ' file.');
                 fileInput.value = ''; // Clear the input
+                return;
             }
 
+            showLoadingModal();
             // Create form data and append file
             var formData = new FormData();
             formData.append('file', file);
@@ -1315,14 +1431,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 result = JSON.parse(result);
                 currentCorrectTaskFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
                 currentCorrectTaskFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
-                alert(currentCorrectTaskFileUri);
+                // alert(currentCorrectTaskFileUri);
                 // currentTaskFilePath = result.replace(/(\r\n|\n|\r)/gm, "").split(",")[0];
                 // currentTaskFileUri = result.replace(/(\r\n|\n|\r)/gm, "").split(",")[1];
+                hideLoadingModal();
+                bootbox.alert("File uploaded successfully");
 
             })
             .catch(error => {
                 console.error('Error:', error);
-                // alert('File upload failed');
+                hideLoadingModal();
+                bootbox.alert('File upload failed');
+                document.getElementById('correctTaskFile').value = ''; // Clear the input field
+                document.getElementById('correctTaskFile').nextElementSibling.innerText = 'Upload correct solution file for the task';
+
             });
         }
         
@@ -1339,10 +1461,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .then(task => {
                 currentTaskJson = task;
                 updateChatUI();
+                highlightCurrentTask();
             })
             .catch(error => {
                 console.error('An error occurred:', error);
             });
+        }
+
+        function highlightCurrentTask() {
+            const interval = setInterval(() => {
+                const taskElement = document.getElementById('task-' + currentTaskJson.task_id);
+                if (taskElement) {
+                    taskElement.style.backgroundColor = '#d3d3d3'; // Highlight color
+                    taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    clearInterval(interval);
+                }
+            }, 100); // Check every 100 milliseconds
         }
 
         function getTasksList(classId) {
@@ -1363,7 +1497,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     const newTaskItem = document.createElement('div');
                     newTaskItem.classList.add('task-item');
                     newTaskItem.id = 'task-' + task.task_id;
-                    newTaskItem.textContent = task.task_name;
+                    
+                    const icon = document.createElement('img');
+                    icon.style.width = '1.25em';
+                    icon.style.height = '1.25em';
+                    icon.style.marginRight = '0.625em';
+                    if (task.task_type === 'PDF') {
+                        icon.src = "<?php echo convert_path_to_url(WP_CONTENT_DIR . '/ITAIAssistant101/icons/pdf.png')?>";
+                    } else if (task.task_type === 'Excel') {
+                        icon.src = "<?php echo convert_path_to_url(WP_CONTENT_DIR . '/ITAIAssistant101/icons/excel.png');?>";
+                    }
+                    
+                    const textContent = document.createElement('span');
+                    textContent.textContent = "#" + task.task_id + " " + task.task_name;
+                    
+                    newTaskItem.appendChild(icon);
+                    newTaskItem.appendChild(textContent);
+                    
                     newTaskItem.onclick = function() {
                         reloadWithTaskId(task.task_id);
                     };
@@ -1381,32 +1531,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
         function closeModal() {
-            document.getElementById('addTaskModal').classList.remove('is-active');
-            currentStep = 1;
-            document.getElementById('step1').style.display = 'block';
-            document.getElementById('step2').style.display = 'none';
-            document.getElementById('step3').style.display = 'none';
-            document.getElementById('step4').style.display = 'none';
+            bootbox.confirm({
+                title: "Are you sure you want to close?",
+                message: "Do you want to close the task without saving?",
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> Cancel'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> Confirm'
+                    }
+                },
+                callback: function (result) {
+                    if(result) {
+                        document.getElementById('addTaskModal').classList.remove('is-active');
+                        currentStep = 1;
+                        document.getElementById('step1').style.display = 'block';
+                        document.getElementById('step2').style.display = 'none';
+                        document.getElementById('step3').style.display = 'none';
+                        document.getElementById('step4').style.display = 'none';
+                    }
+                }
+            });
         }
 
         let currentStep = 1;
-        updateFooterButtons(currentStep);
+        updateFooterButtons(currentStep, 'PDF');
 
         const visibilities = {
             PDF: [1, 2, 3, 4],
-            Excel: [1, 2, 4]
+            Excel: [1, 2]
         };
 
         function toggleTaskTypeFields() {
             const taskType = document.getElementById('taskType').value;
             const pdfFields = document.querySelectorAll('.pdf-field');
             const excelFields = document.querySelectorAll('.excel-field');
+            const taskFile = document.getElementById('taskFile');
+            const taskFileCorrect = document.getElementById('correctTaskFile');
+        
             pdfFields.forEach(field => {
                 field.style.display = taskType === 'PDF' ? 'block' : 'none';
             });
             excelFields.forEach(field => {
                 field.style.display = taskType === 'Excel' ? 'block' : 'none';
             });
+        
+            if (taskType === 'PDF') {
+                taskFile.setAttribute('accept', '.pdf');
+            } else if (taskType === 'Excel') {
+                taskFile.setAttribute('accept', '.xls,.xlsx');
+                taskFileCorrect.setAttribute('accept', '.xls,.xlsx');
+            }
+            document.getElementById('taskFile').value = '';   
+            document.getElementById('taskFile').nextElementSibling.innerText = 'Upload file for the task';
+            document.getElementById('correctTaskFile').value = '';
+            document.getElementById('correctTaskFile').nextElementSibling.innerText = 'Upload correct solution file for the task';
         }
 
         function nextStep() {
@@ -1416,11 +1596,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (steps[currentStep - 1] === 1) {
                 const fileInput = document.getElementById('taskFile');
                 const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : 'No file selected';
+                const correctFileInput = document.getElementById('correctTaskFile');
+                const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : 'No file selected';
                 document.getElementById('displayTaskFile').innerText = fileName;
-                document.getElementById('displayTaskFile2').innerText = fileName;
+                document.getElementById('displayTaskCorrectFile').innerText = correctFileName;
                 document.getElementById('displayTaskName').innerText = document.getElementById('taskName').value;
                 document.getElementById('displayTaskType').innerText = document.getElementById('taskType').value;
                 document.getElementById('displayTaskDescription').innerText = document.getElementById('taskDescription').value;
+                
+                if(document.getElementById('displayTaskName').innerText === '' || document.getElementById('displayTaskType').innerText === '' || document.getElementById('displayTaskDescription').innerText === '' || fileInput.files.length === 0) {
+                    bootbox.alert('Please fill in all fields');
+                    return;
+                }
+
+                if (taskType === 'Excel' &&  correctFileInput.files.length === 0) {
+                    bootbox.alert('Please fill in all fields');
+                    return;
+                }
             }
 
             if (steps[currentStep - 1] === 2) {
@@ -1428,12 +1620,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     document.getElementById('step3').style.display = 'block';
                     document.getElementById('step2').style.display = 'none';
                     currentStep++;
-                    updateFooterButtons(currentStep);
+                    updateFooterButtons(currentStep, taskType);
                     return;
+
                 }
             }
 
-            if (steps[currentStep - 1] === 4) {
+            if (steps[currentStep - 1] === 3) {
+                if (taskType === 'PDF') {
+                    if (document.getElementById('taskSummary').value === '' || document.getElementById('taskQuestions').value === '') {
+                        bootbox.confirm({
+                            title: "Are you sure you want to proceed?",
+                            message: "Do you want to leave the task with empty summary and self-check questions? You are free to use AI generation functionality to save time!",
+                            buttons: {
+                                cancel: {
+                                    label: '<i class="fa fa-times"></i> Cancel'
+                                },
+                                confirm: {
+                                    label: '<i class="fa fa-check"></i> Confirm'
+                                }
+                            },
+                            callback: function (result) {
+                                if(!result) {
+                                    previousStep();
+                                    return;
+                                } 
+                            }
+                        });
+                    }
+                }
+            }
+
+            if (steps[currentStep - 1] === 4 || steps[currentStep - 1] === 3) {
+                const fileInput = document.getElementById('taskFile');
+                const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : 'No file selected';
+                const correctFileInput = document.getElementById('correctTaskFile');
+                const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : 'No file selected';
+                document.getElementById('displayTaskFile2').innerText = fileName;
                 document.getElementById('finalTaskName').innerText = document.getElementById('taskName').value;
                 document.getElementById('finalTaskType').innerText = document.getElementById('taskType').value;
                 document.getElementById('finalTaskDescription').innerText = document.getElementById('taskDescription').value;
@@ -1441,15 +1664,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 document.getElementById('finalTaskQuestions').innerText = document.getElementById('taskQuestions').value;
                 document.getElementById('step4').style.display = 'block';
                 document.getElementById('step3').style.display = 'none';
+
                 currentStep++;
-                updateFooterButtons(currentStep);
+                updateFooterButtons(currentStep, taskType);
                 return;
             }
 
             document.getElementById('step' + steps[currentStep - 1]).style.display = 'none';
             currentStep++;
             document.getElementById('step' + steps[currentStep - 1]).style.display = 'block';
-            updateFooterButtons(currentStep);
+            updateFooterButtons(currentStep, taskType);
         }
 
         function previousStep() {
@@ -1459,13 +1683,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('step' + steps[currentStep - 1]).style.display = 'none';
             currentStep--;
             document.getElementById('step' + steps[currentStep - 1]).style.display = 'block';
-            updateFooterButtons(currentStep);
+            updateFooterButtons(currentStep, taskType);
         }
 
-        function updateFooterButtons(step) {
+        function updateFooterButtons(step, taskType) {
             document.getElementById('prevButton').style.display = step > 1 ? 'inline' : 'none';
-            document.getElementById('nextButton').style.display = step < 4 ? 'inline' : 'none';
-            document.getElementById('saveButton').style.display = step === 4 ? 'inline' : 'none';
+            if (taskType === 'PDF') {
+                document.getElementById('saveButton').style.display = step === 4 ? 'inline' : 'none';
+                document.getElementById('nextButton').style.display = step < 4 ? 'inline' : 'none';
+            } else {
+                document.getElementById('saveButton').style.display = step === 2 ? 'inline' : 'none';
+                document.getElementById('nextButton').style.display = step < 2 ? 'inline' : 'none';
+            }
         }
 
         function saveTask() {
@@ -1475,27 +1704,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const taskSummary = document.getElementById('taskSummary').value;
             const taskQuestions = document.getElementById('taskQuestions').value;
 
+            // Create the data object
+            const data = {
+                message: 'task-save',
+                name: taskName,
+                text: taskDescription,
+                type: taskType,
+                class_id: 1,
+                file_clean: currentTaskFilePath,
+                file_correct: currentCorrectTaskFilePath,
+                file_uri: currentTaskFileUri,
+                correct_file_uri: currentCorrectTaskFileUri,
+                system_prompt: taskSummary,
+                default_summary: taskSummary,
+                default_self_check_questions: taskQuestions
+            };
+
+            // Log the task questions
+            console.log('Task questions before passing to PHP:', taskQuestions);
+
+            // Send the data using fetch
             fetch('', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Type': 'application/json',
                 },
-                body: 'message=task-save&name=' + encodeURIComponent(taskName) + '&text=' + encodeURIComponent(taskDescription) + '&type=' + encodeURIComponent(taskType) + '&class_id=1' + '&file_clean=' + encodeURIComponent(currentTaskFilePath) + '&file_correct=' + encodeURIComponent(currentCorrectTaskFilePath) + '&file_uri=' + encodeURIComponent(currentTaskFileUri) + '&correct_file_uri=' + encodeURIComponent(currentCorrectTaskFileUri) + '&system_prompt=' + encodeURIComponent(taskSummary) + '&default_summary=' + encodeURIComponent(taskSummary) + '&default_self_check_questions=' + encodeURIComponent(taskQuestions),
+                body: JSON.stringify(data),
             })
+            .then(response => response.json())
+            .then(data => {
+                bootbox.alert('Task created successfully');
+            })
+            .catch((error) => {
+                bootbox.alert('Error saving task: ', error);
+            });
 
             // Add the new task to the task list
             const taskList = document.querySelector('.task-list');
             const newTaskItem = document.createElement('div');
             newTaskItem.classList.add('task-item');
             newTaskItem.textContent = taskName;
-            newTaskItem.onclick = function() {
-                reloadWithTaskId(taskList.children.length + 1);
-            };
             taskList.appendChild(newTaskItem);
+            newTaskItem.id = 'task-' + taskList.children.length;
+            newTaskItem.onclick = function() {
+                reloadWithTaskId(taskList.children.length);
+            };
+
+            reloadWithTaskId(taskList.children.length);
 
             // Close the modal
             closeModal();
         }
+
 
 
         // Initialize modal fields visibility
@@ -1510,11 +1770,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function selectClass(className) {
-            alert('You selected ' + className);
+            bootbox.alert('You selected ' + className);
             closeClassModal();
         }
 
         function createSelfCheckAccordion(questions, elementToAddAfter) {
+            const strongText = document.createElement('strong');
+            strongText.innerText = 'Self-check questions:';
+            elementToAddAfter.parentNode.insertBefore(strongText, elementToAddAfter.nextSibling);
+
             const accordionContainer = document.createElement('div');
             accordionContainer.id = 'accordion';
 
@@ -1556,7 +1820,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 accordionContainer.appendChild(card);
             });
 
-            elementToAddAfter.parentNode.insertBefore(accordionContainer, elementToAddAfter.nextSibling);
+            elementToAddAfter.parentNode.insertBefore(accordionContainer, strongText.nextSibling);
             hideLoadingModal();
         }
 

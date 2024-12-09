@@ -187,7 +187,7 @@ function create_class_table() {
             class_main_teacher varchar(255) NOT NULL,
             class_creation_date datetime NOT NULL,
             PRIMARY KEY  (class_id),
-            FOREIGN KEY (class_main_teacher) REFERENCES {$wpdb->prefix}it_ai_assistant101_user(user_username)
+            FOREIGN KEY (class_main_teacher) REFERENCES {$wpdb->prefix}it_ai_assistant101_user(user_username) ON DELETE CASCADE
         ) $charset_collate;";
     
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -221,7 +221,7 @@ function create_task_table() {
             default_self_check_questions text,
             class_id int(11) NOT NULL,
             PRIMARY KEY  (task_id),
-            FOREIGN KEY (class_id) REFERENCES {$wpdb->prefix}it_ai_assistant101_class(class_id)
+            FOREIGN KEY (class_id) REFERENCES {$wpdb->prefix}it_ai_assistant101_class(class_id) ON DELETE CASCADE
         ) $charset_collate;";
     
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -233,7 +233,6 @@ function create_task_table() {
     }
 }
 
-register_activation_hook(__FILE__, 'create_task_table');
 
 
 function create_student_task_solution_table() {
@@ -252,9 +251,9 @@ function create_student_task_solution_table() {
             solution_file varchar(255),
             solution_file_uri varchar(255),
             PRIMARY KEY  (id),
-            FOREIGN KEY (task_id) REFERENCES {$wpdb->prefix}it_ai_assistant101_task(task_id),
-            FOREIGN KEY (user_username) REFERENCES {$wpdb->prefix}it_ai_assistant101_user(user_username),
-            FOREIGN KEY (class_id) REFERENCES {$wpdb->prefix}it_ai_assistant101_class(class_id)
+            FOREIGN KEY (task_id) REFERENCES {$wpdb->prefix}it_ai_assistant101_task(task_id) ON DELETE CASCADE,
+            FOREIGN KEY (user_username) REFERENCES {$wpdb->prefix}it_ai_assistant101_user(user_username) ON DELETE CASCADE,
+            FOREIGN KEY (class_id) REFERENCES {$wpdb->prefix}it_ai_assistant101_class(class_id) ON DELETE CASCADE
         ) $charset_collate;";
     
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -266,7 +265,7 @@ function create_student_task_solution_table() {
     }
 }
 
-register_activation_hook(__FILE__, 'create_student_task_solution_table');
+
 
 function move_default_student_tasks() {
     $source_dir = plugin_dir_path(__FILE__) . 'default_student_tasks';
@@ -292,12 +291,37 @@ function move_default_student_tasks() {
 
 register_activation_hook(__FILE__, 'move_default_student_tasks');
 
+function move_icons() {
+    $source_dir = plugin_dir_path(__FILE__) . 'icons';
+    $destination_dir = WP_CONTENT_DIR . '/ITAIAssistant101/icons';
+
+    if (!file_exists($destination_dir)) {
+        mkdir($destination_dir, 0755, true);
+    }
+
+    $files = scandir($source_dir);
+    foreach ($files as $file) {
+        if ($file !== '.' && $file !== '..') {
+            $source_file = $source_dir . '/' . $file;
+            $destination_file = $destination_dir . '/' . $file;
+            if (!copy($source_file, $destination_file)) {
+                error_log('Failed to copy ' . $source_file . ' to ' . $destination_file);
+            } else {
+                unlink($source_file);
+            }
+        }
+    }
+}
+
+register_activation_hook(__FILE__, 'move_icons');
 
 
 register_activation_hook(__FILE__, 'create_user_table');
 register_activation_hook(__FILE__, 'create_class_table');
 register_activation_hook(__FILE__, 'create_class_user_table');
 register_activation_hook(__FILE__, 'create_login_attempts_table');
+register_activation_hook(__FILE__, 'create_task_table');
+register_activation_hook(__FILE__, 'create_student_task_solution_table');
 
 // Schedule the event on plugin activation
 function schedule_delete_old_login_attempts() {
