@@ -1,6 +1,7 @@
 <?php
 
 require_once 'vendor/autoload.php';
+require_once 'languageconfig.php';
 
 use Smalot\PdfParser\Parser;
 use GuzzleHttp\Client;
@@ -74,11 +75,12 @@ class PdfReader
 
     public function analyzePdf($api_key, $fileUri, $message, $system_prompt = "")
     {
+        global $prompts;
         $client = new Client();
         $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
         
         if (empty($system_prompt)) {
-            $system_prompt = "You analyze the PDF and provide answer from it.";
+            $system_prompt = $prompts['analyze_pdf_system_prompt'];
         }
         $jsonData = [
             'systemInstruction' => [
@@ -131,6 +133,7 @@ class PdfReader
 
     public function analyzePdfSelfCheck($api_key, $fileUri, $message, $system_prompt)
     {
+        global $prompts;
         $file_questions = $this->analyzePdf($api_key, $fileUri, $message, $system_prompt);
         $schema = [
             'description' => 'List of questions and answers',
@@ -170,7 +173,7 @@ class PdfReader
             'systemInstruction' => [
                 'parts' => [
                     [
-                        'text' => 'List all the questions based on the schema given.'
+                        'text' => $prompts['schema_prompt']
                     ],
                 ],
             ],
@@ -273,6 +276,7 @@ class PdfReader
 
     public function analyzeExcelQuestion($api_key, $fileUri, $fileUri2, $message, $fileUri3='')
     {
+        global $prompts;
         error_log("Asking from Excel file...");
         error_log("  File 1: {$fileUri}");
         error_log("  File 2: {$fileUri2}");
@@ -283,7 +287,7 @@ class PdfReader
             'systemInstruction' => [
                 'parts' => [
                     [
-                        'text' => 'Compare the first file uploaded that is students and second that is the correct solution and try to make the asker understand the problem without exposing too much information about the final solution. Talk in Lithuanian.'
+                        'text' => $prompts['analyze_excel_system_prompt']
                     ],
                 ],
             ],

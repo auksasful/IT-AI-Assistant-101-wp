@@ -9,6 +9,7 @@ require_once 'ExcelReader.php';
 require_once 'TaskData.php';
 require_once 'PDFReader.php';
 require_once 'TaskManager.php';
+require_once 'languageconfig.php';
 
 $api_connector = new ApiConnector('');
 // $classManager = new ClassManager();
@@ -20,7 +21,7 @@ if(isset($_GET['task_id'])){
     $current_task = $taskManager->get_task($_GET['task_id']);
 }
 else {
-    $current_task = "No task selected";
+    $current_task = $lang['no_task_selected'];
 }
 $username = '';
 $user_excel_string = '';
@@ -566,14 +567,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif($input === 'task-questions') {
             $fileUri = urldecode($_POST['fileUri']);
             $pdfReader = new PdfReader();
-            $system_prompt = "You create self-check questions from the text in lithuanian language like this:
-            Q1: Question one text
-            A1: Answer one text
-            Q2: Question two text
-            A2: Answer two text
-            Q3: Question three text
-            A3: Answer three text";
-            $prompt = 'Please write 20 self-check questions with answers from the PDF file in Lithuanian language.';
+            $system_prompt = $prompts['task_questions_system_prompt'];
+            $prompt = $prompts['task_questions_prompt'];
             echo $pdfReader->analyzePdfSelfCheck($API_KEY, $fileUri, $prompt, $system_prompt);
         }
         elseif($input === 'task-save') {
@@ -619,7 +614,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $solution_file_uri = $result[1];
             $taskManager->insert_student_task_solution($task_id, $class_id, $user_username, $solution_file, $solution_file_uri);
             $pdfReader = new PdfReader();
-            $prompt = 'Please compare the student solution with the correct solution and provide feedback and useful tips.';
+            $prompt = $promts['done_excel_task_prompt'];
             echo $pdfReader->analyzeExcel($API_KEY, $solution_file_uri, $task->clean_task_file_uri, $prompt);
             return "Your uploaded solution: {$solution_file}";
         }
@@ -641,7 +636,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $fileUri = $pdfReader->uploadFileNew($API_KEY, $current_task->task_file_clean, 'task111.pdf');
                         $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $fileUri, $current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
                     }
-                    call_embedded_ocr_pdf("Please answer to the user message {$input} from the file in Lithuanian", $fileUri);
+                    call_embedded_ocr_pdf( $prompts["ask_pdf_prompt1"] . $input . $prompts["ask_pdf_prompt2"], $fileUri);
                 }
                 elseif ($current_task->task_type == 'Excel') {
                     $pdfReader = new PdfReader();
@@ -718,7 +713,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Pokalbių robotas</title>
+    <title><?php echo $lang['chatbot_title']; ?></title>
     <script src="https://cdn.jsdelivr.net/npm/marked@3.0.7/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
@@ -765,6 +760,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flex: none;
             padding-left: 0.6em !important;
             padding-right: 0.6em !important;
+            font-size: smaller;
         }
         .settings-menu {
             padding: 1rem;
@@ -838,36 +834,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <section class="section">
         <div class="left-panel">
             <div class="top-left-buttons">
-                <button class="button is-link" onclick="openClassModal()">Select Class</button>
-                <button class="button is-primary" onclick="addTask()">Add Task</button>
+                <button class="button is-link" onclick="openClassModal()"><?php echo $lang['select_class']; ?></button>
+                <button class="button is-primary" onclick="addTask()"><?php echo $lang['add_task']; ?></button>
             </div>
             <div class="task-list"></div>
             <div class="bottom-left-buttons">
             <div class="settings-menu">
-                <button class="button is-primary">Settings</button>
-                <button class="button is-danger" onclick="confirmLogout()">Logout</button>
+                <button class="button is-primary"><?php echo $lang['settings']; ?></button>
+                <button class="button is-danger" onclick="confirmLogout()"><?php echo $lang['logout']; ?></button>
             </div>
             </div>
         </div>
         <div class="container">
             <div id="chat-container" class="box"></div>
-            <div id="typing-indicator">Assistant is typing...</div>
+            <div id="typing-indicator"><?php echo $lang['assistant_typing']; ?></div>
             <div class="field is-grouped">
                 <p class="control is-expanded">
-                    <input id="user-input" class="input" type="text" placeholder="Please enter a message">
+                    <input id="user-input" class="input" type="text" placeholder="<?php echo $lang['please_enter_message']; ?>">
                 </p>
                 <p class="control">
-                    <button class="button is-primary" onclick="sendMessage()">Send</button>
+                    <button class="button is-primary" onclick="sendMessage()"><?php echo $lang['send']; ?></button>
                 </p>
             </div>
             <p class="control">
                 <div id="fileInputDiv" class="custom-file">
                     <input type="file" class="custom-file-input" id="fileInput" accept=".xls,.xlsx" onchange="uploadFile()">
-                    <label class="custom-file-label" for="fileInput">Upload Excel file from task once done</label>
+                    <label class="custom-file-label" for="fileInput"><?php echo $lang['upload_excel_file']; ?></label>
                 </div>
             </p>
             <div id="loader">
                 <progress class="progress is-small is-primary" max="100"></progress>
+            </div>
+            <br>
+            <br>
+            <div class="text-center"></div>
+                <a href="login.php?lang=en" onclick="event.preventDefault(); window.location.href='<?php echo home_url('/itaiassistant101/login?lang=en'); ?>';"><?php echo $lang['lang_en'] ?></a>
+                | <a href="login.php?lang=lt" onclick="event.preventDefault(); window.location.href='<?php echo home_url('/itaiassistant101/login?lang=lt'); ?>';"><?php echo $lang['lang_lt'] ?></a>
             </div>
         </div>
     </section>
@@ -876,19 +878,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="modal-background"></div>
     <div class="modal-card">
         <header class="modal-card-head">
-            <p class="modal-card-title">Add Task</p>
+            <p class="modal-card-title"><?php echo $lang['add_task']; ?></p>
             <button class="delete" aria-label="close" onclick="closeModal()"></button>
         </header>
         <section class="modal-card-body">
             <div id="step1">
                 <div class="field">
-                    <label class="label">Task Name</label>
+                    <label class="label"><?php echo $lang['task_name'] ?></label>
                     <div class="control">
-                        <input class="input" type="text" id="taskName" placeholder="Enter task name">
+                        <input class="input" type="text" id="taskName" placeholder="<?php echo $lang['enter_task_name']; ?>">
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Task Type</label>
+                    <label class="label"><?php echo $lang['task_type']; ?></label>
                     <div class="control">
                         <div class="select">
                             <select id="taskType" onchange="toggleTaskTypeFields()">
@@ -899,69 +901,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Upload File</label>
+                    <label class="label"><?php echo $lang['upload_file']; ?></label>
                     <div class="control">
                         <input type="file" class="custom-file-input" id="taskFile" accept=".pdf,.xls,.xlsx" onchange="validateFileType()">
-                        <label class="custom-file-label" for="taskFile">Upload file for the task</label>
+                        <label class="custom-file-label" for="taskFile"><?php echo $lang['upload_file_for_task']; ?></label>
                     </div>
                 </div>
                 <div class="excel-field">
                     <div class="field">
-                        <label class="label">Upload Correct Exercise File</label>
+                        <label class="label"><?php echo $lang['upload_correct_exercise_file']; ?></label>
                         <div class="control">
                             <input type="file" class="custom-file-input" id="correctTaskFile" accept=".pdf,.xls,.xlsx" onchange="validateCorrectFileType()">
-                            <label class="custom-file-label" for="correctTaskFile">Upload correct solution file for the task</label>
+                            <label class="custom-file-label" for="correctTaskFile"><?php echo $lang['upload_correct_solution_file_for_task']; ?></label>
                         </div>
                     </div>
                 </div>
                 <div class="field">
-                    <label class="label">Task Description</label>
+                    <label class="label"><?php echo $lang['task_description']; ?></label>
                     <div class="control">
-                        <textarea class="textarea" id="taskDescription" placeholder="Enter task description"></textarea>
+                        <textarea class="textarea" id="taskDescription" placeholder="<?php echo $lang['enter_task_description']; ?>"></textarea>
                     </div>
                 </div>
             </div>
             <div id="step2" style="display: none;">
-                <p><strong>Task Name:</strong> <span id="displayTaskName"></span></p>
-                <p><strong>Task Type:</strong> <span id="displayTaskType"></span></p>
-                <p><strong>Uploaded File:</strong> <span id="displayTaskFile"></span></p>
+                <p><strong><?php echo $lang['task_name']; ?>:</strong> <span id="displayTaskName"></span></p>
+                <p><strong><?php echo $lang['task_type']; ?>:</strong> <span id="displayTaskType"></span></p>
+                <p><strong><?php echo $lang['uploaded_file']; ?>:</strong> <span id="displayTaskFile"></span></p>
                 <div class="excel-field">
-                    <p><strong>Uploaded File:</strong> <span id="displayTaskCorrectFile"></span></p>
+                    <p><strong><?php echo $lang['uploaded_correct_file']; ?>:</strong> <span id="displayTaskCorrectFile"></span></p>
                 </div> 
-                <p><strong>Task Description:</strong> <span id="displayTaskDescription"></span></p>
+                <p><strong><?php echo $lang['task_description']; ?>:</strong> <span id="displayTaskDescription"></span></p>
             </div>
             <div id="step3" style="display: none;">
                 <div class="pdf-field">
                     <div class="field">
-                        <label class="label">Task Summary</label>
-                        <button class="button" onclick="writeTaskSummary()">Write summary with AI</button>
+                        <label class="label"><?php echo $lang['task_summary']; ?></label>
+                        <button class="button" onclick="writeTaskSummary()"><?php echo $lang['write_summary_with_ai']; ?></button>
                         <div class="control">
                             <textarea class="textarea" id="taskSummary" placeholder="Enter task summary"></textarea>
                         </div>
                     </div>
                     <div class="field">
-                        <label class="label">Task Self Check Questions</label>
-                        <button class="button" onclick="writeTaskQuestions()">Write questions with AI</button>
+                        <label class="label"><?php echo $lang['task_self_check_questions']; ?></label>
+                        <button class="button" onclick="writeTaskQuestions()"><?php echo $lang['write_questions_with_ai']; ?></button>
                         <div class="control">
-                            <textarea class="textarea" id="taskQuestions" placeholder="Enter task self check questions"></textarea>
+                            <textarea class="textarea" id="taskQuestions" placeholder="<?php echo $lang['enter_task_self_check_questions']; ?>"></textarea>
                         </div>
                     </div>
                 </div>
             </div>
             <div id="step4" style="display: none;">
-                <p><strong>Task Name:</strong> <span id="finalTaskName"></span></p>
-                <p><strong>Task Type:</strong> <span id="finalTaskType"></span></p>
-                <p><strong>Uploaded File:</strong> <span id="displayTaskFile2"></span></p>  
-                <p><strong>Task Description:</strong> <span id="finalTaskDescription"></span></p>
-                <p class="pdf-field"><strong>Task Summary:</strong> <span id="finalTaskSummary"></span></p>
-                <p class="pdf-field"><strong>Task Self Check Questions:</strong> <span id="finalTaskQuestions"></span></p>
+                <p><strong><?php echo $lang['task_name']; ?>:</strong> <span id="finalTaskName"></span></p>
+                <p><strong><?php echo $lang['task_type']; ?>:</strong> <span id="finalTaskType"></span></p>
+                <p><strong><?php echo $lang['uploaded_file']; ?>:</strong> <span id="displayTaskFile2"></span></p>  
+                <p><strong><?php echo $lang['task_description']; ?>:</strong> <span id="finalTaskDescription"></span></p>
+                <p class="pdf-field"><strong><?php echo $lang['task_summary']; ?>:</strong> <span id="finalTaskSummary"></span></p>
+                <p class="pdf-field"><strong><?php echo $lang['task_self_check_questions']; ?>:</strong> <span id="finalTaskQuestions"></span></p>
             </div>
         </section>
         <footer class="modal-card-foot">
-            <button class="button" onclick="closeModal()">Cancel</button>
-            <button class="button" id="prevButton" onclick="previousStep()">Back</button>
-            <button class="button is-primary" id="nextButton" onclick="nextStep()">Next</button>
-            <button class="button is-success" id="saveButton" onclick="saveTask()">Save Task</button>
+            <button class="button" onclick="closeModal()"><?php echo $lang['cancel']; ?></button>
+            <button class="button" id="prevButton" onclick="previousStep()"><?php echo $lang['back']; ?></button>
+            <button class="button is-primary" id="nextButton" onclick="nextStep()"><?php echo $lang['next']; ?></button>
+            <button class="button is-success" id="saveButton" onclick="saveTask()"><?php echo $lang['task_save']; ?></button>
         </footer>
         </div>
     </div>
@@ -971,12 +973,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="modal-background"></div>
         <div class="modal-card">
             <header class="modal-card-head">
-                <p class="modal-card-title">Select Class</p>
+                <p class="modal-card-title"><?php echo $lang['select_class']; ?></p>
                 <button class="delete" aria-label="close" onclick="closeClassModal()"></button>
             </header>
             <section class="modal-card-body">
                 <div class="field">
-                    <label class="label">Available Classes</label>
+                    <label class="label"><?php echo $lang['available_classes']; ?></label>
                     <div class="control">
                         <div class="list">
                             <div class="list-item" onclick="selectClass('Class 1')">Class 1</div>
@@ -987,7 +989,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </section>
             <footer class="modal-card-foot">
-                <button class="button" onclick="closeClassModal()">Close</button>
+                <button class="button" onclick="closeClassModal()"><?php echo $lang['close']; ?></button>
             </footer>
         </div>
     </div>
@@ -997,11 +999,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="modal-background"></div>
         <div class="modal-card">
             <header class="modal-card-head">
-                <p class="modal-card-title">Request Loading</p>
+                <p class="modal-card-title"><?php echo $lang['request_loading']; ?></p>
             </header>
             <section class="modal-card-body">
-                <progress class="progress is-small is-primary" max="100">Loading...</progress>
-                <p>Please wait while we process your request.</p>
+                <progress class="progress is-small is-primary" max="100"><?php echo $lang['loading']; ?></progress>
+                <p><?php echo $lang['please_wait']; ?></p>
             </section>
         </div>
     </div>
@@ -1028,7 +1030,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Convert URLs in the text to clickable links
             const urlRegex = /(https?:\/\/[^\s]+)/g;
-            const urlText = 'Click URL';
+            const urlText = '<?php echo $lang['click_url']; ?>';
             const html = marked(text.replace(urlRegex, function(url) {
                 return `<a href="${url}" target="_blank" class="btn btn-primary">${urlText}</a><br>`;
             }));
@@ -1174,7 +1176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     formData.append('class_id', currentTaskJson.class_id);
                     
 
-                    displayMessage('Submitted file: ' + fileName, 'user');
+                    displayMessage('<?php echo $lang['submitted_file']; ?>: ' + fileName, 'user');
                     showLoader();
                     showTypingIndicator();
                     // Use Fetch or AJAX to send file to server
@@ -1187,19 +1189,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         displayMessage(result, 'model');
                         hideLoader();
                         hideTypingIndicator();
-                        bootbox.alert("File uploaded successfully");
+                        bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
                     })
                     .catch(error => {
-                        console.error('Error:', error);
-                        bootbox.alert("File upload failed");
+                        console.error('<?php echo $lang['error']; ?>:', error);
+                        bootbox.alert("<?php echo $lang['file_upload_failed']; ?>");
                         document.getElementById('fileInput').value = ''; // Clear the input field
                     });
                 } else {
-                    bootbox.alert("Please upload an XLS or XLSX file");
+                    bootbox.alert("<?php echo $lang['upload_xls_xlsx_file']; ?>");
                     document.getElementById('fileInput').value = ''; // Clear the input field
                 }
             } else {
-                bootbox.alert("No file selected");
+                bootbox.alert("<?php echo $lang['no_file_selected']; ?>");
             }
         }
 
@@ -1212,7 +1214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ((taskType === 'PDF' && fileExtension !== 'pdf') || 
                 (taskType === 'Excel' && (fileExtension !== 'xls' && fileExtension !== 'xlsx'))) {
-                bootbox.alert('Please upload a valid ' + taskType + ' file.');
+                bootbox.alert('<?php echo $lang['please_upload_valid']; ?> ' + taskType + ' <?php echo $lang['file']; ?>.');
                 fileInput.value = ''; // Clear the input
                 return;
             }
@@ -1233,13 +1235,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 currentTaskFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
                 currentTaskFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
                 hideLoadingModal();
-                bootbox.alert("File uploaded successfully");
+                bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
 
             })
             .catch(error => {
                 console.error('Error:', error);
                 hideLoadingModal();
-                bootbox.alert('File upload failed');
+                bootbox.alert('<?php echo $lang['file_upload_failed']; ?>');
                 document.getElementById('taskFile').value = ''; // Clear the input field
                 document.getElementById('taskFile').nextElementSibling.innerText = 'Upload file for the task';
             });
@@ -1279,7 +1281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const fileExtension = fileName.split('.').pop().toLowerCase();
 
             if ((taskType === 'Excel' && (fileExtension !== 'xls' && fileExtension !== 'xlsx'))) {
-                bootbox.alert('Please upload a valid ' + taskType + ' file.');
+                bootbox.alert('<?php echo $lang['please_upload_valid']; ?> ' + taskType + ' <?php echo $lang['file']; ?>.');
                 fileInput.value = ''; // Clear the input
                 return;
             }
@@ -1301,13 +1303,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 currentCorrectTaskFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
                 currentCorrectTaskFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
                 hideLoadingModal();
-                bootbox.alert("File uploaded successfully");
+                bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
 
             })
             .catch(error => {
                 console.error('Error:', error);
                 hideLoadingModal();
-                bootbox.alert('File upload failed');
+                bootbox.alert('<?php echo $lang['file_upload_failed']; ?>');
                 document.getElementById('correctTaskFile').value = ''; // Clear the input field
                 document.getElementById('correctTaskFile').nextElementSibling.innerText = 'Upload correct solution file for the task';
 
@@ -1398,14 +1400,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         function closeModal() {
             bootbox.confirm({
-                title: "Are you sure you want to close?",
-                message: "Do you want to close the task without saving?",
+                title: "<?php echo $lang['confirm_close']; ?>",
+                message: "<?php echo $lang['confirm_close_without_saving']; ?>",
                 buttons: {
                     cancel: {
-                        label: '<i class="fa fa-times"></i> Cancel'
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
                     },
                     confirm: {
-                        label: '<i class="fa fa-check"></i> Confirm'
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
                     }
                 },
                 callback: function (result) {
@@ -1450,9 +1452,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 taskFileCorrect.setAttribute('accept', '.xls,.xlsx');
             }
             document.getElementById('taskFile').value = '';   
-            document.getElementById('taskFile').nextElementSibling.innerText = 'Upload file for the task';
+            document.getElementById('taskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
             document.getElementById('correctTaskFile').value = '';
-            document.getElementById('correctTaskFile').nextElementSibling.innerText = 'Upload correct solution file for the task';
+            document.getElementById('correctTaskFile').nextElementSibling.innerText = '<?php echo $lang['upload_correct_solution_file_for_task']; ?>';
         }
 
         function nextStep() {
@@ -1461,9 +1463,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (steps[currentStep - 1] === 1) {
                 const fileInput = document.getElementById('taskFile');
-                const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : 'No file selected';
+                const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 const correctFileInput = document.getElementById('correctTaskFile');
-                const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : 'No file selected';
+                const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 document.getElementById('displayTaskFile').innerText = fileName;
                 document.getElementById('displayTaskCorrectFile').innerText = correctFileName;
                 document.getElementById('displayTaskName').innerText = document.getElementById('taskName').value;
@@ -1471,12 +1473,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 document.getElementById('displayTaskDescription').innerText = document.getElementById('taskDescription').value;
                 
                 if(document.getElementById('displayTaskName').innerText === '' || document.getElementById('displayTaskType').innerText === '' || document.getElementById('displayTaskDescription').innerText === '' || fileInput.files.length === 0) {
-                    bootbox.alert('Please fill in all fields');
+                    bootbox.alert('<?php echo $lang['please_fill_in_all_fields']; ?>');
                     return;
                 }
 
                 if (taskType === 'Excel' &&  correctFileInput.files.length === 0) {
-                    bootbox.alert('Please fill in all fields');
+                    bootbox.alert('<?php echo $lang['please_fill_in_all_fields']; ?>');
                     return;
                 }
             }
@@ -1496,14 +1498,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (taskType === 'PDF') {
                     if (document.getElementById('taskSummary').value === '' || document.getElementById('taskQuestions').value === '') {
                         bootbox.confirm({
-                            title: "Are you sure you want to proceed?",
-                            message: "Do you want to leave the task with empty summary and self-check questions? You are free to use AI generation functionality to save time!",
+                            title: "<?php echo $lang['confirm_proceed']; ?>",
+                            message: "<?php echo $lang['confirm_leave_empty_summary']; ?>",
                             buttons: {
                                 cancel: {
-                                    label: '<i class="fa fa-times"></i> Cancel'
+                                    label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
                                 },
                                 confirm: {
-                                    label: '<i class="fa fa-check"></i> Confirm'
+                                    label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
                                 }
                             },
                             callback: function (result) {
@@ -1519,9 +1521,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (steps[currentStep - 1] === 4 || steps[currentStep - 1] === 3) {
                 const fileInput = document.getElementById('taskFile');
-                const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : 'No file selected';
+                const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 const correctFileInput = document.getElementById('correctTaskFile');
-                const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : 'No file selected';
+                const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 document.getElementById('displayTaskFile2').innerText = fileName;
                 document.getElementById('finalTaskName').innerText = document.getElementById('taskName').value;
                 document.getElementById('finalTaskType').innerText = document.getElementById('taskType').value;
@@ -1599,10 +1601,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             })
             .then(response => response.json())
             .then(data => {
-                bootbox.alert('Task created successfully');
+                bootbox.alert('<?php echo $lang['task_created_successfully']; ?>');
             })
             .catch((error) => {
-                bootbox.alert('Error saving task: ', error);
+                bootbox.alert('<?php echo $lang['error_saving_task']; ?>: ', error);
             });
 
             // Add the new task to the task list
@@ -1636,13 +1638,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function selectClass(className) {
-            bootbox.alert('You selected ' + className);
+            bootbox.alert('<?php echo $lang['you_selected']; ?> ' + className);
             closeClassModal();
         }
 
         function createSelfCheckAccordion(questions, elementToAddAfter) {
             const strongText = document.createElement('strong');
-            strongText.innerText = 'Self-check questions:';
+            strongText.innerText = '<?php echo $lang['self_check_questions']; ?>:';
             elementToAddAfter.parentNode.insertBefore(strongText, elementToAddAfter.nextSibling);
 
             const accordionContainer = document.createElement('div');
@@ -1696,14 +1698,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         function confirmLogout() {
             bootbox.confirm({
-                title: "Logout Confirmation",
-                message: "Are you sure you want to logout? This cannot be undone.",
+                title: "<?php echo $lang['logout_confirmation_header']; ?>",
+                message: "<?php echo $lang['logout_confirmation']; ?>",
                 buttons: {
                     cancel: {
-                        label: '<i class="fa fa-times"></i> Cancel'
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
                     },
                     confirm: {
-                        label: '<i class="fa fa-check"></i> Confirm'
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
                     }
                 },
                 callback: function (result) {
