@@ -23,6 +23,7 @@
         'no_task_selected' => 'No task selected',
         'task_name' => 'Task Name',
         'task_type' => 'Task Type',
+        'task_text' => 'Task Text',
         'upload_file' => 'Upload File',
         'upload_correct_exercise_file' => 'Upload Correct Exercise File',
         'task_description' => 'Task Description',

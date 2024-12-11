@@ -21,6 +21,7 @@
         'no_task_selected' => 'Nepasirinkta jokia užduotis',
         'task_name' => 'Užduoties pavadinimas',
         'task_type' => 'Užduoties tipas',
+        'task_text' => 'Užduoties tekstas',
         'upload_file' => 'Įkelti failą',
         'upload_correct_exercise_file' => 'Įkelti teisingą užduoties failą',
         'task_description' => 'Užduoties aprašymas',

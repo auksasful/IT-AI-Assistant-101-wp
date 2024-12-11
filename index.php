@@ -480,7 +480,8 @@ function saveTask($name, $text, $type, $class_id, $file_clean = null, $file_corr
 // get_tasks_by_class_id
 function getTasksByClassId($class_id) {
     global $taskManager;
-    return $taskManager->get_tasks_by_class_id($class_id);
+    global $username;
+    return $taskManager->get_tasks_by_class_id($class_id, $username);
 }
 
 
@@ -542,11 +543,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $input = $_POST['message'];
         if ($input === 'intro-message') {
             if ($current_task->task_id != null) {
-                sendModelMessage(" **Task name:**<br>{$current_task->task_name}<br>");
-                sendModelMessage(" **Task text:**<br>{$current_task->task_text}<br>");
-                sendModelMessage(" **Task file:**<br>" . convert_path_to_url($current_task->task_file_clean));
+                sendModelMessage(" **{$lang["task_name"]}:**<br>{$current_task->task_name}<br>");
+                sendModelMessage(" **{$lang["task_text"]}:**<br>{$current_task->task_text}<br>");
+                sendModelMessage(" **{$lang["task_file"]}:**<br>" . convert_path_to_url($current_task->task_file_clean));
                 if ($current_task->task_type == 'PDF') {
-                    sendModelMessage(" **Task summary:**<br>{$current_task->default_summary}<br>");
+                    sendModelMessage(" **{$lang["task_summary"]}:**<br>{$current_task->default_summary}<br>");
                 }
             }
             else {
@@ -614,7 +615,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $solution_file_uri = $result[1];
             $taskManager->insert_student_task_solution($task_id, $class_id, $user_username, $solution_file, $solution_file_uri);
             $pdfReader = new PdfReader();
-            $prompt = $promts['done_excel_task_prompt'];
+            $prompt = $prompts['done_excel_task_prompt'];
             echo $pdfReader->analyzeExcel($API_KEY, $solution_file_uri, $task->clean_task_file_uri, $prompt);
             return "Your uploaded solution: {$solution_file}";
         }
@@ -627,6 +628,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             else {
                 echo json_encode('No task selected');
             }
+        }
+        elseif($input === 'current-class-id') {
+            echo json_encode($class_id);
         }
         else {
                 if ($current_task->task_type == 'PDF') {
@@ -850,15 +854,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div id="typing-indicator"><?php echo $lang['assistant_typing']; ?></div>
             <div class="field is-grouped">
                 <p class="control is-expanded">
-                    <input id="user-input" class="input" type="text" placeholder="<?php echo $lang['please_enter_message']; ?>">
+                    <input id="user-input" class="input" type="text" placeholder="<?php echo $lang['please_enter_message']; ?>" disabled>
                 </p>
                 <p class="control">
-                    <button class="button is-primary" onclick="sendMessage()"><?php echo $lang['send']; ?></button>
+                    <button id="sendMessageButton" class="button is-primary" onclick="sendMessage()" disabled><?php echo $lang['send']; ?></button>
                 </p>
             </div>
             <p class="control">
                 <div id="fileInputDiv" class="custom-file">
-                    <input type="file" class="custom-file-input" id="fileInput" accept=".xls,.xlsx" onchange="uploadFile()">
+                    <input type="file" class="custom-file-input" id="fileInput" accept=".xls,.xlsx" onchange="uploadFile()" disabled>
                     <label class="custom-file-label" for="fileInput"><?php echo $lang['upload_excel_file']; ?></label>
                 </div>
             </p>
@@ -1014,6 +1018,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const typingIndicator = document.getElementById('typing-indicator');
 
         let currentTaskJson = '';
+        let currentClassId = 0;
 
         let currentTaskFilePath = '';
         let currentTaskFileUri = '';
@@ -1330,10 +1335,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 currentTaskJson = task;
                 updateChatUI();
                 highlightCurrentTask();
+                console.log('Current task: ', currentTaskJson.task_type);
+                if (typeof currentTaskJson.task_type !== 'undefined' && currentTaskJson.task_type != '') {
+                    enableChatInputs();
+                }
             })
             .catch(error => {
                 console.error('An error occurred:', error);
             });
+        }
+
+        // current-class-id
+        function getCurrentClassId() {
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=current-class-id',
+            })
+            .then(response => response.json())
+            .then(classId => {
+                console.log('Current class ID: ', classId);
+                getTasksList(classId);
+                currentClassId = classId;
+            })
+            .catch(error => {
+                console.error('An error occurred:', error);
+            });
+        }
+
+        function enableChatInputs() {
+            userInput.disabled = false;
+            document.getElementById('fileInput').disabled = false;
+            document.getElementById('sendMessageButton').disabled = false;
         }
 
         function highlightCurrentTask() {
@@ -1578,7 +1613,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 name: taskName,
                 text: taskDescription,
                 type: taskType,
-                class_id: 1,
+                class_id: currentClassId,
                 file_clean: currentTaskFilePath,
                 file_correct: currentCorrectTaskFilePath,
                 file_uri: currentTaskFileUri,
@@ -1745,7 +1780,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php //loadChatHistory(); ?>
                 sendIntroMessage();
                 console.log('Chat history loaded');
-                getTasksList(1);
+                getCurrentClassId();
                 getCurrentTask();
             }, 2000); // 2000 milliseconds = 2 seconds
         });

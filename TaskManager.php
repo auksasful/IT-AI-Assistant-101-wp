@@ -28,11 +28,21 @@ class TaskManager {
         );
     }
 
-    public function get_tasks_by_class_id($class_id) {
-        $table_name = $this->db->prefix . 'it_ai_assistant101_task';
-        $sql = "SELECT * FROM $table_name WHERE class_id = %d";
-        $results = $this->db->get_results($this->db->prepare($sql, $class_id));
-        return $results;
+    public function get_tasks_by_class_id($class_id, $user_username) {
+        $user_table_name = $this->db->prefix . 'it_ai_assistant101_class_user';
+        $task_table_name = $this->db->prefix . 'it_ai_assistant101_task';
+
+        // Check if the user is in the class
+        $user_check_sql = "SELECT COUNT(*) FROM $user_table_name WHERE class_id = %d AND user_username = %s";
+        $user_exists = $this->db->get_var($this->db->prepare($user_check_sql, $class_id, $user_username));
+
+        if ($user_exists) {
+            $sql = "SELECT * FROM $task_table_name WHERE class_id = %d";
+            $results = $this->db->get_results($this->db->prepare($sql, $class_id));
+            return $results;
+        } else {
+            return array(); // Return an empty array if the user is not in the class
+        }
     }
 
     public function get_task($task_id) {
