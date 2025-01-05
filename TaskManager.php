@@ -8,7 +8,7 @@ class TaskManager {
         $this->db = $wpdb;
     }
 
-    public function insert_task($task_name, $task_text, $task_type, $class_id, $task_file_clean = null, $task_file_correct = null, $task_file_uri = null, $clean_task_file_uri = null, $system_prompt = null, $default_summary = null, $default_self_check_questions = null) {
+    public function insert_task($task_name, $task_text, $task_type, $class_id, $task_file_clean = null, $task_file_correct = null, $python_data_file = null, $orange_data_file=null, $task_file_uri = null, $clean_task_file_uri = null, $python_data_file_uri = null, $orange_data_file_uri = null, $python_program_execution_result = null, $orange_program_execution_result = null, $system_prompt = null, $default_summary = null, $default_self_check_questions = null) {
         $table_name = $this->db->prefix . 'it_ai_assistant101_task';
         $this->db->insert(
             $table_name,
@@ -18,14 +18,21 @@ class TaskManager {
                 'task_type' => $task_type,
                 'task_file_clean' => $task_file_clean,
                 'task_file_correct' => $task_file_correct,
+                'python_data_file' => $python_data_file,
+                'orange_data_file' => $orange_data_file,
                 'task_file_uri' => $task_file_uri,
                 'clean_task_file_uri' => $clean_task_file_uri,
+                'python_data_file_uri' => $python_data_file_uri,
+                'orange_data_file_uri' => $orange_data_file_uri,
+                'python_program_execution_result' => $python_program_execution_result,
+                'orange_program_execution_result' => $orange_program_execution_result,
                 'system_prompt' => $system_prompt,
                 'default_summary' => $default_summary,
                 'default_self_check_questions' => $default_self_check_questions,
                 'class_id' => $class_id
             )
         );
+        return $this->db->insert_id;
     }
 
     public function get_tasks_by_class_id($class_id, $user_username) {
@@ -80,7 +87,7 @@ class TaskManager {
         );
     }
 
-    public function insert_student_task_solution($task_id, $class_id, $user_username, $solution_file = null, $solution_file_uri = null) {
+    public function insert_student_task_solution($task_id, $class_id, $user_username, $solution_file = null, $solution_file_uri = null, $solution_file_mime_type = null) {
         $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_solution';
         
         // Check if a solution already exists for the given task_id, class_id, and user_username
@@ -89,7 +96,7 @@ class TaskManager {
         
         if ($existing_solution) {
             // Update the existing solution
-            $this->update_student_task_solution($existing_solution, $task_id, $class_id, $user_username, $solution_file, $solution_file_uri);
+            $this->update_student_task_solution($existing_solution, $task_id, $class_id, $user_username, $solution_file, $solution_file_uri, $solution_file_mime_type);
         } else {
             // Insert a new solution
             $this->db->insert(
@@ -99,7 +106,8 @@ class TaskManager {
                     'class_id' => $class_id,
                     'user_username' => $user_username,
                     'solution_file' => $solution_file,
-                    'solution_file_uri' => $solution_file_uri
+                    'solution_file_uri' => $solution_file_uri,
+                    'solution_file_mime_type' => $solution_file_mime_type
                 )
             );
         }
@@ -112,7 +120,7 @@ class TaskManager {
         return $result;
     }
     
-    public function update_student_task_solution($id, $task_id, $class_id, $user_username, $solution_file = null, $solution_file_uri = null) {
+    public function update_student_task_solution($id, $task_id, $class_id, $user_username, $solution_file = null, $solution_file_uri = null, $solution_file_mime_type = null) {
         $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_solution';
         $this->db->update(
             $table_name,
@@ -121,7 +129,8 @@ class TaskManager {
                 'class_id' => $class_id,
                 'user_username' => $user_username,
                 'solution_file' => $solution_file,
-                'solution_file_uri' => $solution_file_uri
+                'solution_file_uri' => $solution_file_uri,
+                'solution_file_mime_type' => $solution_file_mime_type
             ),
             array('id' => $id)
         );

@@ -321,6 +321,13 @@ function uploadFile() {
         $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
         $fileName = pathinfo($filePath, PATHINFO_FILENAME);
         if (move_uploaded_file($file['tmp_name'], $filePath)) {
+            if ($_POST['message'] === 'python-data-file') {
+                $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, $fileName . '.txt', 'text/plain')[0];
+                return [$filePath, $fileUri]; 
+            }
+            if ($_POST['message'] === 'orange-data-file') {
+                return [$filePath, '']; 
+            }
             // if file extension is excel
             if ($fileExtension == 'xlsx' || $fileExtension == 'xls') {
                 $excel_reader = new ExcelReader($filePath);
@@ -330,13 +337,18 @@ function uploadFile() {
                 $textFile = fopen($textFilePath, 'w');
                 fwrite($textFile, print_r($excel_data, true));
                 fclose($textFile);
-                $fileUri = $PDFReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain');
+                $fileUri = $PDFReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain')[0];
                 return [$filePath, $fileUri]; 
             }
             elseif ($fileExtension == 'pdf') {
-                $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, $fileName . '.pdf', 'application/pdf');
+                $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, $fileName . '.pdf', 'application/pdf')[0];
                 return [$filePath, $fileUri];  
             }
+            elseif (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'bmp'])) {
+                $result = $PDFReader->uploadFileNew($API_KEY, $filePath, $fileName . '.' . $fileExtension, 'image/' . $fileExtension);
+                return [$filePath, $result[0], $result[1]];  
+            }
+            return [$filePath, ''];
         } else {
             return '';
         }
@@ -472,9 +484,9 @@ function call_embedded_ocr_excel($message, $fileUri = '') {
     return true;
 }
 
-function saveTask($name, $text, $type, $class_id, $file_clean = null, $file_correct = null, $file_uri = null, $correct_file_uri = null, $system_prompt = null, $default_summary = null, $default_self_check_questions = null) {
+function saveTask($name, $text, $type, $class_id, $file_clean = null, $file_correct = null, $python_data_file = null, $orange_data_file = null, $file_uri = null, $correct_file_uri = null, $python_data_file_uri = null, $orange_data_file_uri = null, $python_program_execution_result = null, $orange_program_execution_result = null, $system_prompt = null, $default_summary = null, $default_self_check_questions = null) {
     global $taskManager;
-    $taskManager->insert_task($name, $text, $type, $class_id, $file_clean, $file_correct, $file_uri, $correct_file_uri, $system_prompt, $default_summary, $default_self_check_questions);
+    return $taskManager->insert_task($name, $text, $type, $class_id, $file_clean, $file_correct, $python_data_file, $orange_data_file, $file_uri, $correct_file_uri, $python_data_file_uri, $orange_data_file_uri, $python_program_execution_result, $orange_program_execution_result, $system_prompt, $default_summary, $default_self_check_questions);
 }
 
 // get_tasks_by_class_id
@@ -524,15 +536,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $class_id = $data['class_id']; 
                 $file_clean = $data['file_clean']; 
                 $file_correct = $data['file_correct']; 
-                $file_uri = $data['file_uri']; 
-                $correct_file_uri = $data['correct_file_uri']; 
+                $python_data_file = $data['python_data_file'];
+                $orange_data_file = $data['orange_data_file'];
+                $file_uri = $data['file_uri'];
+                $correct_file_uri = $data['correct_file_uri'];
+                $python_data_file_uri = $data['python_data_file_uri'];
+                $orange_data_file_uri = $data['orange_data_file_uri'];
+                $python_program_execution_result = $data['python_program_execution_result'];    
+                $orange_program_execution_result = $data['orange_program_execution_result'];
                 $system_prompt = 'You are a helpful and informative bot that answers questions in Lithuanian language using text from the file.'; 
                 $default_summary = $data['default_summary']; 
                 $default_self_check_questions = $data['default_self_check_questions']; 
                 // Log the self-check questions 
                 error_log('default_self_check_questions in PHP: ' . $default_self_check_questions); 
                 // Call the saveTask function with the data 
-                saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $file_uri, $correct_file_uri, $system_prompt, $default_summary, $default_self_check_questions); 
+                echo json_encode(saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $python_data_file, $orange_data_file, $file_uri, $correct_file_uri, $python_data_file_uri, $orange_data_file_uri, $python_program_execution_result, $orange_program_execution_result, $system_prompt, $default_summary, $default_self_check_questions));
             }
         }
 
@@ -584,8 +602,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $class_id = $data['class_id'];
             $file_clean = $data['file_clean'];
             $file_correct = $data['file_correct'];
+            $python_data_file = $data['python_data_file'];
+            $orange_data_file = $data['orange_data_file'];
             $file_uri = $data['file_uri'];
             $correct_file_uri = $data['correct_file_uri'];
+            $python_data_file_uri = $data['python_data_file_uri'];
+            $orange_data_file_uri = $data['orange_data_file_uri'];
+            $python_program_execution_result = $data['python_program_execution_result'];
+            $orange_program_execution_result = $data['orange_program_execution_result'];
             $system_prompt = 'You are a helpful and informative bot that answers questions in lithuanian language using text from the file.';
             $default_summary = $data['default_summary'];
             $default_self_check_questions = $data['default_self_check_questions'];
@@ -594,7 +618,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log('default_self_check_questions in PHP: ' . $default_self_check_questions);
         
             // Call the saveTask function with the data
-            saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $file_uri, $correct_file_uri, $system_prompt, $default_summary, $default_self_check_questions);
+            saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $python_data_file, $file_uri, $correct_file_uri, $python_data_file_uri, $python_program_execution_result, $system_prompt, $default_summary, $default_self_check_questions);
         }        
         elseif($input === 'task-list') {
             $class_id = $_POST['class_id'];
@@ -602,6 +626,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode($tasks);
         }
         elseif($input === 'task-file') {
+            $result = uploadFile();
+            echo json_encode($result);
+        }
+        elseif($input === 'python-data-file') {
+            $result = uploadFile();
+            echo json_encode($result);
+        }
+        elseif($input === 'orange-data-file') {
             $result = uploadFile();
             echo json_encode($result);
         }
@@ -615,9 +647,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $solution_file_uri = $result[1];
             $taskManager->insert_student_task_solution($task_id, $class_id, $user_username, $solution_file, $solution_file_uri);
             $pdfReader = new PdfReader();
-            $prompt = $prompts['done_excel_task_prompt'];
-            echo $pdfReader->analyzeExcel($API_KEY, $solution_file_uri, $task->clean_task_file_uri, $prompt);
-            return "Your uploaded solution: {$solution_file}";
+            if ($task->task_type == 'Excel') {
+                $prompt = $prompts['done_excel_task_prompt'];
+                echo $pdfReader->analyzeExcel($API_KEY, $solution_file_uri, $task->clean_task_file_uri, $prompt);
+                return "Your uploaded solution: {$solution_file}";
+            } elseif ($task->task_type == 'Python') {
+                // $prompt = $prompts['done_python_task_prompt'];
+                if (file_exists($solution_file)) {
+                    $prompt = file_get_contents($solution_file);
+                }
+                else {
+                    $prompt = "No solution file found";
+                }
+                echo $pdfReader->analyzePython($API_KEY, $task->python_data_file, $task->python_program_execution_result, $prompt);
+                return "Your uploaded solution: {$solution_file}";
+            } elseif ($task->task_type == 'Orange') {
+                $solution_file_mime_type = $result[2];
+                $prompt = $prompts['done_orange_task_prompt'];
+                echo $pdfReader->analyzeOrange($API_KEY, $solution_file_uri, $solution_file_mime_type, $prompt);
+                return "Your uploaded solution: {$solution_file}";
+            }
         }
         elseif($input === 'current-task') {
             $task_id = $_GET['task_id'];
@@ -637,7 +686,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pdfReader = new PdfReader();
                     $fileUri = $current_task->task_file_uri;
                     if (!$pdfReader->fileExists($API_KEY, $fileUri)) {
-                        $fileUri = $pdfReader->uploadFileNew($API_KEY, $current_task->task_file_clean, 'task111.pdf');
+                        $fileUri = $pdfReader->uploadFileNew($API_KEY, $current_task->task_file_clean, 'task111.pdf')[0];
                         $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $fileUri, $current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
                     }
                     call_embedded_ocr_pdf( $prompts["ask_pdf_prompt1"] . $input . $prompts["ask_pdf_prompt2"], $fileUri);
@@ -663,7 +712,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $excel_data = $excel_reader->readDataWithCoordinates();
                             // move excel_data to text file with the same name to the same path but the extension is .txt
                             $textFilePath = str_replace($fileExtension, 'txt', $filePath);
-                            $student_solutionFileUri = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain');
+                            $student_solutionFileUri = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain')[0];
                             $taskManager->update_student_task_solution($student_solution->solution_id, $current_task->task_id, $current_task->class_id, $student_solution->user_username, $student_solution->solution_file, $student_solutionFileUri);
                         }
                     }
@@ -676,7 +725,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $excel_data = $excel_reader->readDataWithCoordinates();
                             // move excel_data to text file with the same name to the same path but the extension is .txt
                             $textFilePath = str_replace($fileExtension, 'txt', $filePath);
-                            $fileUri1 = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain');
+                            $fileUri1 = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain')[0];
                             $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $fileUri1, $current_task->clean_task_file_uri,$current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
                         }
                     }
@@ -689,7 +738,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $excel_data = $excel_reader->readDataWithCoordinates();
                         // move excel_data to text file with the same name to the same path but the extension is .txt
                         $textFilePath = str_replace($fileExtension, 'txt', $filePath);
-                        $fileUri2 = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain');
+                        $fileUri2 = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain')[0];
                         $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $current_task->task_file_uri, $fileUri2, $current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
                     }
 
@@ -698,6 +747,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $response = $pdfReader->analyzeExcelQuestion($API_KEY, $fileUri1, $fileUri2, $input);
+                    echo $response;
+                }
+                elseif($current_task->task_type == 'Orange') {
+                    $pdfReader = new PdfReader();
+                    $response = $pdfReader->analyzeOrangeQuestion($API_KEY, $current_task->orange_data_file_uri, $current_task->orange_program_execution_result, $input);
                     echo $response;
                 }
                 else {
@@ -817,6 +871,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background-color: #007bff;
             color: white;
         }
+        .custom-file-label {
+            word-wrap: break-word;
+            width: 100%;
+        }
+
         #chat-container {
             height: 400px;
             overflow-y: auto;
@@ -863,7 +922,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <p class="control">
                 <div id="fileInputDiv" class="custom-file">
                     <input type="file" class="custom-file-input" id="fileInput" accept=".xls,.xlsx" onchange="uploadFile()" disabled>
-                    <label class="custom-file-label" for="fileInput"><?php echo $lang['upload_excel_file']; ?></label>
+                    <label class="custom-file-label" id="fileInputTaskDoneLabel" for="fileInput"><?php echo $lang['upload_excel_file']; ?></label>
                 </div>
             </p>
             <div id="loader">
@@ -900,11 +959,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <select id="taskType" onchange="toggleTaskTypeFields()">
                                 <option value="PDF">PDF</option>
                                 <option value="Excel">Excel</option>
+                                <option value="Python">Python</option>
+                                <option value="Orange">Orange</option>
                             </select>
                         </div>
                     </div>
                 </div>
-                <div class="field">
+                <div class="field" id="taskFileField">
                     <label class="label"><?php echo $lang['upload_file']; ?></label>
                     <div class="control">
                         <input type="file" class="custom-file-input" id="taskFile" accept=".pdf,.xls,.xlsx" onchange="validateFileType()">
@@ -917,6 +978,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="control">
                             <input type="file" class="custom-file-input" id="correctTaskFile" accept=".pdf,.xls,.xlsx" onchange="validateCorrectFileType()">
                             <label class="custom-file-label" for="correctTaskFile"><?php echo $lang['upload_correct_solution_file_for_task']; ?></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="python-field">
+                    <div class="field">
+                        <label class="label"><?php echo $lang['upload_python_data_file']; ?></label>
+                        <div class="control">
+                            <input type="file" class="custom-file-input" id="correctPythonDataFile" accept=".txt,.csv" onchange="validatePythonDataFileType()">
+                            <label class="custom-file-label" for="correctPythonDataFile"><?php echo $lang['upload_python_data_file_for_checking']; ?></label>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label"><?php echo $lang['correct_program_execution_result']; ?></label>
+                        <div class="control">
+                            <textarea class="textarea" id="correctPythonProgramExecutionResult" placeholder="<?php echo $lang['enter_correct_program_execution_result']; ?>"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="orange-field">
+                    <div class="field">
+                        <label class="label"><?php echo $lang['upload_orange_data_file']; ?></label>
+                        <div class="control">
+                            <input type="file" class="custom-file-input" id="correctOrangeDataFile" accept=".tab,.tsv,.tab.gz,.tsv.gz,.gz,.tab.bz2,.tsv.bz2,.bz2,.tab.xz,.tsv.xz,.xz,.csv,.csv.gz,.csv.bz2,.basket,.bsk,.xls,.xlsx,.pkl,.pickle,.pkl.gz,.pickle.gz,.pkl.bz2,.pickle.bz2,.pkl.xz,.pickle.xz" onchange="validateOrangeDataFileType()">
+                            <label class="custom-file-label" for="correctOrangeDataFile" title="<?php echo $lang['upload_orange_data_file_for_checking']; ?>"> 
+                                <?php echo $lang['upload_orange_data_file_for_checking']; ?> 
+                            </label>                        
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label"><?php echo $lang['correct_program_execution_result']; ?></label>
+                        <div class="control">
+                            <textarea class="textarea" id="correctOrangeProgramExecutionResult" placeholder="<?php echo $lang['enter_correct_program_execution_result']; ?>"></textarea>
                         </div>
                     </div>
                 </div>
@@ -934,6 +1027,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="excel-field">
                     <p><strong><?php echo $lang['uploaded_correct_file']; ?>:</strong> <span id="displayTaskCorrectFile"></span></p>
                 </div> 
+                <div class="python-field">
+                    <p><strong><?php echo $lang['uploaded_python_data_file']; ?>:</strong> <span id="displayTaskPythonDataFile"></span></p>
+                    <p><strong><?php echo $lang['correct_program_execution_result']; ?>:</strong> <span id="displayTaskPythonProgramExecutionResult"></span></p>
+                </div>
                 <p><strong><?php echo $lang['task_description']; ?>:</strong> <span id="displayTaskDescription"></span></p>
             </div>
             <div id="step3" style="display: none;">
@@ -1025,6 +1122,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         let currentCorrectTaskFilePath = '';
         let currentCorrectTaskFileUri = '';
+
+        let currentPythonDataFilePath = '';
+        let currentPythonDataFileUri = '';
+
+        let currentOrangeDataFilePath = '';
 
         function displayMessage(text, sender) {
             console.log(text, sender);
@@ -1171,40 +1273,111 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 var fileName = file.name;
                 var fileExtension = fileName.split('.').pop().toLowerCase();
 
-                if (fileExtension === 'xls' || fileExtension === 'xlsx') {
+                if(currentTaskJson.task_type === 'Excel') {
+                    if (fileExtension === 'xls' || fileExtension === 'xlsx') {
+                        // Create form data and append file
+                        var formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('message', 'done-task-file');
+                        formData.append('task_id', currentTaskJson.task_id);
+                        formData.append('class_id', currentTaskJson.class_id);
 
-                    // Create form data and append file
-                    var formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('message', 'done-task-file');
-                    formData.append('task_id', currentTaskJson.task_id);
-                    formData.append('class_id', currentTaskJson.class_id);
-                    
 
-                    displayMessage('<?php echo $lang['submitted_file']; ?>: ' + fileName, 'user');
-                    showLoader();
-                    showTypingIndicator();
-                    // Use Fetch or AJAX to send file to server
-                    fetch('index.php', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.text())
-                    .then(result => {
-                        displayMessage(result, 'model');
-                        hideLoader();
-                        hideTypingIndicator();
-                        bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
-                    })
-                    .catch(error => {
-                        console.error('<?php echo $lang['error']; ?>:', error);
-                        bootbox.alert("<?php echo $lang['file_upload_failed']; ?>");
+                        displayMessage('<?php echo $lang['submitted_file']; ?>: ' + fileName, 'user');
+                        showLoader();
+                        showTypingIndicator();
+                        // Use Fetch or AJAX to send file to server
+                        fetch('index.php', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.text())
+                        .then(result => {
+                            displayMessage(result, 'model');
+                            hideLoader();
+                            hideTypingIndicator();
+                            bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
+                        })
+                        .catch(error => {
+                            console.error('<?php echo $lang['error']; ?>:', error);
+                            bootbox.alert("<?php echo $lang['file_upload_failed']; ?>");
+                            document.getElementById('fileInput').value = ''; // Clear the input field
+                        });
+                    } else {
+                        bootbox.alert("<?php echo $lang['upload_xls_xlsx_file']; ?>");
                         document.getElementById('fileInput').value = ''; // Clear the input field
-                    });
-                } else {
-                    bootbox.alert("<?php echo $lang['upload_xls_xlsx_file']; ?>");
-                    document.getElementById('fileInput').value = ''; // Clear the input field
-                }
+                    }
+                } else if (currentTaskJson.task_type === 'Python') {
+                    if (fileExtension === 'py' || fileExtension === 'txt') {
+                        // Create form data and append file
+                        var formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('message', 'done-task-file');
+                        formData.append('task_id', currentTaskJson.task_id);
+                        formData.append('class_id', currentTaskJson.class_id);
+
+
+                        displayMessage('<?php echo $lang['submitted_file']; ?>: ' + fileName, 'user');
+                        showLoader();
+                        showTypingIndicator();
+                        // Use Fetch or AJAX to send file to server
+                        fetch('index.php', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.text())
+                        .then(result => {
+                            displayMessage(result, 'model');
+                            hideLoader();
+                            hideTypingIndicator();
+                            bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
+                        })
+                        .catch(error => {
+                            console.error('<?php echo $lang['error']; ?>:', error);
+                            bootbox.alert("<?php echo $lang['file_upload_failed']; ?>");
+                            document.getElementById('fileInput').value = ''; // Clear the input field
+                        });
+                    } else {
+                        bootbox.alert("<?php echo $lang['upload_py_txt_file']; ?>");
+                        document.getElementById('fileInput').value = ''; // Clear the input field
+                    }
+                } else if (currentTaskJson.task_type === 'Orange') {
+                    if (fileExtension === 'png' || fileExtension === 'jpg' || fileExtension === 'jpeg') {
+                        // Create form data and append file
+                        var formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('message', 'done-task-file');
+                        formData.append('task_id', currentTaskJson.task_id);
+                        formData.append('class_id', currentTaskJson.class_id);
+
+
+                        displayMessage('<?php echo $lang['submitted_file']; ?>: ' + fileName, 'user');
+                        showLoader();
+                        showTypingIndicator();
+                        // Use Fetch or AJAX to send file to server
+                        fetch('index.php', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.text())
+                        .then(result => {
+                            displayMessage(result, 'model');
+                            hideLoader();
+                            hideTypingIndicator();
+                            bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
+                        })
+                        .catch(error => {
+                            console.error('<?php echo $lang['error']; ?>:', error);
+                            bootbox.alert("<?php echo $lang['file_upload_failed']; ?>");
+                            document.getElementById('fileInput').value = ''; // Clear the input field
+                        });
+                    } else {
+                        bootbox.alert("<?php echo $lang['upload_png_jpg_jpeg_file']; ?>");
+                        document.getElementById('fileInput').value = ''; // Clear the input field
+                    }
+                } 
+
+                
             } else {
                 bootbox.alert("<?php echo $lang['no_file_selected']; ?>");
             }
@@ -1248,7 +1421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 hideLoadingModal();
                 bootbox.alert('<?php echo $lang['file_upload_failed']; ?>');
                 document.getElementById('taskFile').value = ''; // Clear the input field
-                document.getElementById('taskFile').nextElementSibling.innerText = 'Upload file for the task';
+                document.getElementById('taskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
             });
         }
 
@@ -1316,11 +1489,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 hideLoadingModal();
                 bootbox.alert('<?php echo $lang['file_upload_failed']; ?>');
                 document.getElementById('correctTaskFile').value = ''; // Clear the input field
-                document.getElementById('correctTaskFile').nextElementSibling.innerText = 'Upload correct solution file for the task';
+                document.getElementById('correctTaskFile').nextElementSibling.innerText = '<?php echo $lang['upload_correct_solution_file_for_task']; ?>';
 
             });
         }
         
+
+        function validatePythonDataFileType() {
+            const taskType = document.getElementById('fileInput').value;
+            const fileInput = document.getElementById('correctPythonDataFile');
+            const file = fileInput.files[0];
+            const fileName = file.name;
+            const fileExtension = fileName.split('.').pop().toLowerCase();
+
+            if ((taskType === 'Python' && (fileExtension !== 'txt' && fileExtension !== 'csv'))) {
+                bootbox.alert('<?php echo $lang['please_upload_valid']; ?> (.txt,.csv) <?php echo $lang['file']; ?>.');
+                fileInput.value = ''; // Clear the input
+                return;
+            }
+
+            showLoadingModal();
+            // Create form data and append file
+            var formData = new FormData();
+            formData.append('file', file);
+            formData.append('message', 'python-data-file');
+            
+            // Use Fetch or AJAX to send file to server
+            fetch('index.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(result => {
+                result = JSON.parse(result);
+                currentPythonDataFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
+                currentPythonDataFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
+
+                hideLoadingModal();
+                bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
+
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                hideLoadingModal();
+                bootbox.alert('<?php echo $lang['file_upload_failed']; ?>');
+                document.getElementById('correctPythonDataFile').value = ''; // Clear the input field
+                document.getElementById('correctPythonDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_python_data_file_for_checking']; ?>';
+
+            });
+        }
+
+        function validateOrangeDataFileType() {
+            const taskType = document.getElementById('fileInput').value;
+            const fileInput = document.getElementById('correctOrangeDataFile');
+            const file = fileInput.files[0];
+            const fileName = file.name;
+            const fileExtension = fileName.split('.').pop().toLowerCase();
+
+            if ((taskType === 'Orange' && !['tab', 'tsv', 'tab.gz', 'tsv.gz', 'gz', 'tab.bz2', 'tsv.bz2', 'bz2', 'tab.xz', 'tsv.xz', 'xz', 'csv', 'csv.gz', 'csv.bz2', 'basket', 'bsk', 'xls', 'xlsx', 'pkl', 'pickle', 'pkl.gz', 'pickle.gz', 'pkl.bz2', 'pickle.bz2', 'pkl.xz', 'pickle.xz'].includes(fileExtension))) {
+                bootbox.alert('<?php echo $lang['please_upload_valid']; ?> (.tab, .tsv, .tab.gz, .tsv.gz, .gz, .tab.bz2, .tsv.bz2, .bz2, .tab.xz, .tsv.xz, .xz, .csv, .csv.gz, .csv.bz2, .basket, .bsk, .xls, .xlsx, .pkl, .pickle, .pkl.gz, .pickle.gz, .pkl.bz2, .pickle.bz2, .pkl.xz, .pickle.xz) <?php echo $lang['file']; ?>.');
+                fileInput.value = ''; // Clear the input
+                return;
+            }
+
+            showLoadingModal();
+            // Create form data and append file
+            var formData = new FormData();
+            formData.append('file', file);
+            formData.append('message', 'orange-data-file');
+            
+            // Use Fetch or AJAX to send file to server
+            fetch('index.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(result => {
+                result = JSON.parse(result);
+                currentOrangeDataFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
+                // currentPythonDataFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
+
+                hideLoadingModal();
+                bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
+
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                hideLoadingModal();
+                bootbox.alert('<?php echo $lang['file_upload_failed']; ?>');
+                document.getElementById('correctOrangeDataFile').value = ''; // Clear the input field
+                document.getElementById('correctOrangeDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_orange_data_file_for_checking']; ?>';
+
+            });
+        }
+
         //function to get the current task json calling current-task AJAX
         function getCurrentTask() {
             fetch('', {
@@ -1338,6 +1600,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 console.log('Current task: ', currentTaskJson.task_type);
                 if (typeof currentTaskJson.task_type !== 'undefined' && currentTaskJson.task_type != '') {
                     enableChatInputs();
+                    toggleLoadTaskTypeFields();
                 }
             })
             .catch(error => {
@@ -1369,6 +1632,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             userInput.disabled = false;
             document.getElementById('fileInput').disabled = false;
             document.getElementById('sendMessageButton').disabled = false;
+            toggleTaskTypeFields();
         }
 
         function highlightCurrentTask() {
@@ -1409,6 +1673,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         icon.src = "<?php echo convert_path_to_url(WP_CONTENT_DIR . '/ITAIAssistant101/icons/pdf.png')?>";
                     } else if (task.task_type === 'Excel') {
                         icon.src = "<?php echo convert_path_to_url(WP_CONTENT_DIR . '/ITAIAssistant101/icons/excel.png');?>";
+                    } else if (task.task_type === 'Python') {
+                        icon.src = "<?php echo convert_path_to_url(WP_CONTENT_DIR . '/ITAIAssistant101/icons/python.png');?>";
+                    } else if (task.task_type === 'Orange') {
+                        icon.src = "<?php echo convert_path_to_url(WP_CONTENT_DIR . '/ITAIAssistant101/icons/orange.png');?>";
                     }
                     
                     const textContent = document.createElement('span');
@@ -1463,33 +1731,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         const visibilities = {
             PDF: [1, 2, 3, 4],
-            Excel: [1, 2]
+            Excel: [1, 2],
+            Python: [1, 2],
+            Orange: [1, 2]
         };
 
         function toggleTaskTypeFields() {
             const taskType = document.getElementById('taskType').value;
             const pdfFields = document.querySelectorAll('.pdf-field');
             const excelFields = document.querySelectorAll('.excel-field');
+            const pythonFields = document.querySelectorAll('.python-field');
+            const orangeFields = document.querySelectorAll('.orange-field');
             const taskFile = document.getElementById('taskFile');
             const taskFileCorrect = document.getElementById('correctTaskFile');
-        
+            const fileInput = document.getElementById('fileInput');
+            const taskFileDiv = document.getElementById('taskFileField');
+
             pdfFields.forEach(field => {
                 field.style.display = taskType === 'PDF' ? 'block' : 'none';
             });
             excelFields.forEach(field => {
                 field.style.display = taskType === 'Excel' ? 'block' : 'none';
             });
+            pythonFields.forEach(field => {
+                field.style.display = taskType === 'Python' ? 'block' : 'none';
+            });
+            orangeFields.forEach(field => {
+                field.style.display = taskType === 'Orange' ? 'block' : 'none';
+            });
         
-            if (taskType === 'PDF') {
+            if (taskType === 'PDF' || taskType === 'Python' || taskType === 'Orange') {
                 taskFile.setAttribute('accept', '.pdf');
+                taskFileDiv.style.display = 'block';
             } else if (taskType === 'Excel') {
                 taskFile.setAttribute('accept', '.xls,.xlsx');
                 taskFileCorrect.setAttribute('accept', '.xls,.xlsx');
+                taskFileDiv.style.display = 'block';
             }
+            
+            // if (taskType === 'Python') {
+            //     //hide taskFileDiv
+            //     // taskFileDiv.style.display = 'none';
+            // }
+
+
+
             document.getElementById('taskFile').value = '';   
             document.getElementById('taskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
             document.getElementById('correctTaskFile').value = '';
             document.getElementById('correctTaskFile').nextElementSibling.innerText = '<?php echo $lang['upload_correct_solution_file_for_task']; ?>';
+        }
+
+        function toggleLoadTaskTypeFields()
+        {
+            taskType = currentTaskJson.task_type;
+            console.log('taskType:', taskType);
+            const taskFile = document.getElementById('fileInput');
+            const fileInputTaskDoneLabel = document.getElementById('fileInputTaskDoneLabel');
+            if (taskType === 'Python') {
+                // set taskFile invisible
+                // taskFile.style.display = 'none';
+                fileInput.setAttribute('accept', '.py,.txt');
+                fileInputTaskDoneLabel.innerText = '<?php echo $lang['upload_python_file']; ?>';
+            }
+            if (taskType === 'Orange') {
+                // upload images
+                fileInput.setAttribute('accept', '.png,.jpg,.jpeg');
+                fileInputTaskDoneLabel.innerText = '<?php echo $lang['upload_orange_screenshot_file']; ?>';
+
+            }
         }
 
         function nextStep() {
@@ -1501,18 +1811,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 const correctFileInput = document.getElementById('correctTaskFile');
                 const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
+                const pythonDataFileInput = document.getElementById('correctPythonDataFile');
+                const pythonDataFileName = pythonDataFileInput.files.length > 0 ? pythonDataFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 document.getElementById('displayTaskFile').innerText = fileName;
                 document.getElementById('displayTaskCorrectFile').innerText = correctFileName;
+                document.getElementById('displayTaskPythonDataFile').innerText = pythonDataFileName;
+                document.getElementById('displayTaskPythonProgramExecutionResult').innerText = document.getElementById('correctPythonProgramExecutionResult').value;
                 document.getElementById('displayTaskName').innerText = document.getElementById('taskName').value;
                 document.getElementById('displayTaskType').innerText = document.getElementById('taskType').value;
                 document.getElementById('displayTaskDescription').innerText = document.getElementById('taskDescription').value;
                 
-                if(document.getElementById('displayTaskName').innerText === '' || document.getElementById('displayTaskType').innerText === '' || document.getElementById('displayTaskDescription').innerText === '' || fileInput.files.length === 0) {
+                if(document.getElementById('displayTaskName').innerText === '' || document.getElementById('displayTaskType').innerText === '' || document.getElementById('displayTaskDescription').innerText === '') {
+                    bootbox.alert('<?php echo $lang['please_fill_in_all_fields']; ?>');
+                    return;
+                }
+                
+                if (fileInput.files.length === 0 &&  (taskType === 'PDF' || taskType === 'Excel')) {
                     bootbox.alert('<?php echo $lang['please_fill_in_all_fields']; ?>');
                     return;
                 }
 
                 if (taskType === 'Excel' &&  correctFileInput.files.length === 0) {
+                    bootbox.alert('<?php echo $lang['please_fill_in_all_fields']; ?>');
+                    return;
+                }
+
+                if (taskType === 'Python' && (document.getElementById('correctPythonProgramExecutionResult').value === '')) {
                     bootbox.alert('<?php echo $lang['please_fill_in_all_fields']; ?>');
                     return;
                 }
@@ -1604,8 +1928,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const taskName = document.getElementById('taskName').value;
             const taskType = document.getElementById('taskType').value;
             const taskDescription = document.getElementById('taskDescription').value;
+            const pythonProgramExecutionResult = document.getElementById('correctPythonProgramExecutionResult').value;
+            const orangeProgramExecutionResult = document.getElementById('correctOrangeProgramExecutionResult').value;
             const taskSummary = document.getElementById('taskSummary').value;
             const taskQuestions = document.getElementById('taskQuestions').value;
+            let newTaskId = 0;
 
             // Create the data object
             const data = {
@@ -1616,8 +1943,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 class_id: currentClassId,
                 file_clean: currentTaskFilePath,
                 file_correct: currentCorrectTaskFilePath,
+                python_data_file: currentPythonDataFilePath,
+                orange_data_file: currentOrangeDataFilePath,
                 file_uri: currentTaskFileUri,
                 correct_file_uri: currentCorrectTaskFileUri,
+                python_data_file_uri: currentPythonDataFileUri,
+                orange_data_file_uri: '',
+                python_program_execution_result: pythonProgramExecutionResult,
+                orange_program_execution_result: '',
                 system_prompt: taskSummary,
                 default_summary: taskSummary,
                 default_self_check_questions: taskQuestions
@@ -1637,6 +1970,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .then(response => response.json())
             .then(data => {
                 bootbox.alert('<?php echo $lang['task_created_successfully']; ?>');
+                newTaskId = data;
             })
             .catch((error) => {
                 bootbox.alert('<?php echo $lang['error_saving_task']; ?>: ', error);
@@ -1648,12 +1982,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             newTaskItem.classList.add('task-item');
             newTaskItem.textContent = taskName;
             taskList.appendChild(newTaskItem);
-            newTaskItem.id = 'task-' + taskList.children.length;
+            newTaskItem.id = 'task-' + newTaskId;
             newTaskItem.onclick = function() {
-                reloadWithTaskId(taskList.children.length);
+                reloadWithTaskId(newTaskId);
             };
 
-            reloadWithTaskId(taskList.children.length);
+            reloadWithTaskId(newTaskId);
 
             // Close the modal
             closeModal();

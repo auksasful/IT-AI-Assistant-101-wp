@@ -14,5 +14,15 @@
         "done_excel_task_prompt" => 'Please compare the student solution in the first file with the correct solution and provide feedback and useful tips. Do not mention what is in the second solution, talk just about what is wrong in the first solution. Arrays should be called Excel sheet.',
         "ask_pdf_prompt1" => "Please answer to the user message ",
         "ask_pdf_prompt2" => " from the file in English",
+        'analyze_python_prompt_1' => '1. Create .txt file using the name defined in the code that has this data:',
+        'analyze_python_prompt_2' => '2. Execute the code, do not correct its content - lookout for syntax or any other errors;\n    
+             3. Show the result;\n    
+             4. Describe the result and compare it with the correct result ',
+        'analyze_python_prompt_3' => '5. Provide 3 suggestions - do not directly give the answer or code snippets, but more like a hint that makes the student think more deeply! Speak in English.',
+        'analyze_python_prompt_4' => '1. Execute the code, do not correct its content - lookout for syntax or any other errors;\n    
+             2. Show the result;\n    
+             3. Describe the result and compare it with the correct result',
+        'analyze_python_prompt_5' => '4. Provide 3 suggestions - do not directly give the answer or code snippets, but more like a hint that makes the student think more deeply! Speak in English.',
+        'done_orange_task_prompt' => 'Please create a question based on the image provided, including all the details visible in the image. Ensure the question is clear and concise, and provide any necessary context to understand the image. Speak in English. Do not explain the answer, just give the question.',
 	);
 ?> 
