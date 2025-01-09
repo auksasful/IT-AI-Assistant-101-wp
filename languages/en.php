@@ -107,7 +107,9 @@
         'you_selected' => 'You selected',
         'self_check_questions' => 'Self-check questions',
         'logout_confirmation_header' => 'Logout Confirmation',
-
+        'confirm_clean_chat_history' => 'Are you sure you want to clean chat history?',
+        'chat_history_cleaned' => 'Chat history cleaned',
+        'clean_chat_history' => 'Clean Chat History',
 
 	);
 ?>

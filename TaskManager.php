@@ -52,11 +52,21 @@ class TaskManager {
         }
     }
 
-    public function get_task($task_id) {
-        $table_name = $this->db->prefix . 'it_ai_assistant101_task';
-        $sql = "SELECT * FROM $table_name WHERE task_id = %d";
-        $result = $this->db->get_row($this->db->prepare($sql, $task_id));
-        return $result;
+    public function get_task($task_id, $user_username) {
+        $task_table_name = $this->db->prefix . 'it_ai_assistant101_task';
+        $user_table_name = $this->db->prefix . 'it_ai_assistant101_class_user';
+
+        // Check if the user is associated with the task
+        $user_check_sql = "SELECT COUNT(*) FROM $user_table_name WHERE class_id = (SELECT class_id FROM $task_table_name WHERE task_id = %d) AND user_username = %s";
+        $user_exists = $this->db->get_var($this->db->prepare($user_check_sql, $task_id, $user_username));
+
+        if ($user_exists) {
+            $sql = "SELECT * FROM $task_table_name WHERE task_id = %d";
+            $result = $this->db->get_row($this->db->prepare($sql, $task_id));
+            return $result;
+        } else {
+            return null; // Return null if the user is not associated with the task
+        }
     }
 
     public function update_task($task_id, $task_name, $task_text, $task_type, $task_file_clean = null, $task_file_correct = null, $task_file_uri = null, $clean_task_file_uri = null, $system_prompt = null, $default_summary = null, $default_self_check_questions = null) {
@@ -138,6 +148,50 @@ class TaskManager {
 
     public function delete_student_task_solution($id) {
         $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_solution';
+        $this->db->delete(
+            $table_name,
+            array('id' => $id)
+        );
+    }
+
+    public function insert_student_task_chat_history($task_id, $class_id, $user_username, $message_role, $system_message, $user_message) {
+        $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_chat_history';
+        $this->db->insert(
+            $table_name,
+            array(
+                'task_id' => $task_id,
+                'class_id' => $class_id,
+                'user_username' => $user_username,
+                'message_role' => $message_role,
+                'system_message' => $system_message,
+                'user_message' => $user_message
+            )
+        );
+        return $this->db->insert_id;
+    }
+
+    public function get_student_task_chat_history($task_id, $class_id, $user_username) {
+        $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_chat_history';
+        $sql = "SELECT * FROM $table_name WHERE task_id = %d AND class_id = %d AND user_username = %s";
+        $results = $this->db->get_results($this->db->prepare($sql, $task_id, $class_id, $user_username));
+        return $results;
+    }
+
+    public function update_student_task_chat_history($id, $message_role, $system_message, $user_message) {
+        $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_chat_history';
+        $this->db->update(
+            $table_name,
+            array(
+                'message_role' => $message_role,
+                'system_message' => $system_message,
+                'user_message' => $user_message
+            ),
+            array('id' => $id)
+        );
+    }
+
+    public function delete_student_task_chat_history($id) {
+        $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_chat_history';
         $this->db->delete(
             $table_name,
             array('id' => $id)

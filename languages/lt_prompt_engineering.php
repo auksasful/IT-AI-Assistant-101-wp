@@ -24,5 +24,6 @@
              3. Apibūdinkite rezultatą ir palyginkite jį su teisingu rezultatu',
         'analyze_python_prompt_5' => '4. Pateikite 3 pasiūlymus - tiesiogiai neduokite atsakymo ar kodo fragmentų, bet pateikite užuominą, kuri paskatintų studentą giliau mąstyti! Kalbėkite lietuvių kalba.',
         'done_orange_task_prompt' => 'Prašome sukurti klausimą pagal pateiktą vaizdą, įtraukiant visas matomas detales. Užtikrinkite, kad klausimas būtų aiškus ir glaustas, ir pateikite bet kokį reikalingą kontekstą, kad suprastumėte vaizdą. Kalbėkite lietuvių kalba. Neaiškinkite atsakymo, tiesiog pateikite klausimą.',
+        'analyze_python_question_prompt' => 'Atsakykite į naudotojo klausimą, jei jis susijęs su Python programavimu. Nepateikite tiesiogiai atsakymo ar kodo fragmentų, bet pateikite užuominą, kuri paskatintų studentą giliau mąstyti, arba pateikite labai bendrą pavyzdį kaip kodo fragmentą, bet ne konkretų sprendimą! Kalbėkite lietuvių kalba.',
     );
 ?>

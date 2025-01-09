@@ -272,6 +272,37 @@ function create_student_task_solution_table() {
     }
 }
 
+// create student task chat history table
+function create_student_task_chat_history_table() {
+    error_log('create_student_task_chat_history_table called'); // Debug statement
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'it_ai_assistant101_student_task_chat_history';
+
+    if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        $charset_collate = $wpdb->get_charset_collate();
+
+        $sql = "CREATE TABLE $table_name (
+            id int(11) NOT NULL AUTO_INCREMENT,
+            task_id int(11) NOT NULL,
+            class_id int(11) NOT NULL,
+            user_username varchar(255) NOT NULL,
+            message_role varchar(255) NOT NULL,
+            system_message text NOT NULL,
+            user_message text NOT NULL,
+            PRIMARY KEY  (id),
+            FOREIGN KEY (task_id) REFERENCES {$wpdb->prefix}it_ai_assistant101_task(task_id) ON DELETE CASCADE,
+            FOREIGN KEY (user_username) REFERENCES {$wpdb->prefix}it_ai_assistant101_user(user_username) ON DELETE CASCADE,
+            FOREIGN KEY (class_id) REFERENCES {$wpdb->prefix}it_ai_assistant101_class(class_id) ON DELETE CASCADE
+        ) $charset_collate;";
+
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+        error_log('Table created: ' . $table_name); // Debug statement
+    } else {
+        error_log('Table already exists: ' . $table_name); // Debug statement
+    }
+}
+
 
 
 function move_default_student_tasks() {
@@ -329,6 +360,7 @@ register_activation_hook(__FILE__, 'create_class_user_table');
 register_activation_hook(__FILE__, 'create_login_attempts_table');
 register_activation_hook(__FILE__, 'create_task_table');
 register_activation_hook(__FILE__, 'create_student_task_solution_table');
+register_activation_hook(__FILE__, 'create_student_task_chat_history_table');
 
 // Schedule the event on plugin activation
 function schedule_delete_old_login_attempts() {

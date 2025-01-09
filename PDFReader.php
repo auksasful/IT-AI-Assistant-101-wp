@@ -10,10 +10,16 @@ use GuzzleHttp\Exception\RequestException;
 class PdfReader
 {
     private $parser;
+    private $task_id;
+    private $class_id;
+    private $user_username;
 
-    public function __construct()
+    public function __construct($task_id, $class_id, $user_username)
     {
         $this->parser = new Parser();
+        $this->task_id = $task_id;
+        $this->class_id = $class_id;
+        $this->user_username = $user_username;
     }
 
 
@@ -75,6 +81,33 @@ class PdfReader
     public function analyzePdf($api_key, $fileUri, $message, $system_prompt = "")
     {
         global $prompts;
+
+        $taskManager = new TaskManager();
+        $chatHistory = $taskManager->get_student_task_chat_history($this->task_id, $this->class_id, $this->user_username);
+
+        $chatHistoryArray = [];
+        foreach ($chatHistory as $chat) {
+            $chatHistoryArray[] = [
+                'role' => $chat->message_role,
+                'parts' => [
+                    [
+                        'text' => $chat->user_message,
+                    ],
+                ],
+            ];
+        }
+
+        $chatHistoryArray[] = [
+            'role' => 'user',
+            'parts' => [
+                ['fileData' => ['fileUri' => $fileUri, 'mimeType' => 'application/pdf']],
+                [
+                    'text' => $message,
+                ],
+            ],
+        ];
+
+
         $client = new Client();
         $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
         
@@ -90,15 +123,7 @@ class PdfReader
                 ],
             ],
             'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [
-                        ['fileData' => ['fileUri' => $fileUri, 'mimeType' => 'application/pdf']],
-                        [
-                            'text' => $message,
-                        ],
-                    ],
-                ],
+                $chatHistoryArray
             ],
             'generationConfig' => [
                 'temperature' => 1,
@@ -119,7 +144,10 @@ class PdfReader
     
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 // Return only the text part
-                return $responseData['candidates'][0]['content']['parts'][0]['text'];
+                $text = $responseData['candidates'][0]['content']['parts'][0]['text'];
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $text);
+                return $text;
             } else {
                 throw new Exception("Text content not found in the response");
             }
@@ -219,30 +247,50 @@ class PdfReader
     
     public function analyzeExcel($api_key, $fileUri1, $fileUri2, $message)
     {
+        $taskManager = new TaskManager();
+        $chatHistory = $taskManager->get_student_task_chat_history($this->task_id, $this->class_id, $this->user_username);
+
         error_log("Analyzing Excel files...");
         error_log("  File 1: {$fileUri1}");
         error_log("  File 2: {$fileUri2}");
+
+        $chatHistoryArray = [];
+        foreach ($chatHistory as $chat) {
+            $chatHistoryArray[] = [
+                'role' => $chat->message_role,
+                'parts' => [
+                    [
+                        'text' => $chat->user_message,
+                    ],
+                ],
+            ];
+        }
+
+        $chatHistoryArray[] = [
+            'role' => 'user',
+            'parts' => [
+                ['fileData' => ['fileUri' => $fileUri1, 'mimeType' => 'text/plain']],
+                ['fileData' => ['fileUri' => $fileUri2, 'mimeType' => 'text/plain']],
+                [
+                    'text' => $message,
+                ],
+            ],
+        ];
+
+        $system_prompt = 'Compare the first file uploaded that is students and second that is the correct solution and try to make the asker understand the problem without exposing too much information about the final solution. Talk in Lithuanian.';
+
         $client = new Client();
         $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
         $jsonData = [
             'systemInstruction' => [
                 'parts' => [
                     [
-                        'text' => 'Compare the first file uploaded that is students and second that is the correct solution and try to make the asker understand the problem without exposing too much information about the final solution. Talk in Lithuanian.'
+                        'text' => $system_prompt
                     ],
                 ],
             ],
             'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [
-                        ['fileData' => ['fileUri' => $fileUri1, 'mimeType' => 'text/plain']],
-                        ['fileData' => ['fileUri' => $fileUri2, 'mimeType' => 'text/plain']],
-                        [
-                            'text' => $message,
-                        ],
-                    ],
-                ],
+                $chatHistoryArray
             ],
             'generationConfig' => [
                 'temperature' => 1,
@@ -262,7 +310,10 @@ class PdfReader
             $responseData = json_decode($response->getBody()->getContents(), true);            
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 // Return only the text part
-                return $responseData['candidates'][0]['content']['parts'][0]['text'];
+                $text = $responseData['candidates'][0]['content']['parts'][0]['text'];
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $text);
+                return $text;
             } else {
                 throw new Exception("Text content not found in the response");
             }
@@ -276,9 +327,38 @@ class PdfReader
     public function analyzeExcelQuestion($api_key, $fileUri, $fileUri2, $message, $fileUri3='')
     {
         global $prompts;
+        $taskManager = new TaskManager();
+        $chatHistory = $taskManager->get_student_task_chat_history($this->task_id, $this->class_id, $this->user_username);
+
         error_log("Asking from Excel file...");
         error_log("  File 1: {$fileUri}");
         error_log("  File 2: {$fileUri2}");
+
+        $chatHistoryArray = [];
+        foreach ($chatHistory as $chat) {
+            $chatHistoryArray[] = [
+                'role' => $chat->message_role,
+                'parts' => [
+                    [
+                        'text' => $chat->user_message,
+                    ],
+                ],
+            ];
+        }
+
+        $chatHistoryArray[] = [
+            'role' => 'user',
+            'parts' => [
+                ['fileData' => ['fileUri' => $fileUri, 'mimeType' => 'text/plain']],
+                ['fileData' => ['fileUri' => $fileUri2, 'mimeType' => 'text/plain']],
+                [
+                    'text' => $message,
+                ],
+            ],
+        ];
+
+        $system_prompt = $prompts['analyze_excel_system_prompt'];
+
 
         $client = new Client();
         $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
@@ -286,21 +366,12 @@ class PdfReader
             'systemInstruction' => [
                 'parts' => [
                     [
-                        'text' => $prompts['analyze_excel_system_prompt']
+                        'text' => $system_prompt
                     ],
                 ],
             ],
             'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [
-                        ['fileData' => ['fileUri' => $fileUri, 'mimeType' => 'text/plain']],
-                        ['fileData' => ['fileUri' => $fileUri2, 'mimeType' => 'text/plain']],
-                        [
-                            'text' => $message,
-                        ],
-                    ],
-                ],
+                $chatHistoryArray
             ],
             'generationConfig' => [
                 'temperature' => 1,
@@ -319,8 +390,11 @@ class PdfReader
     
             $responseData = json_decode($response->getBody()->getContents(), true);            
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
+                $text = $responseData['candidates'][0]['content']['parts'][0]['text'];
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $text);
                 // Return only the text part
-                return $responseData['candidates'][0]['content']['parts'][0]['text'];
+                return $text;
             } else {
                 throw new Exception("Text content not found in the response");
             }
@@ -334,6 +408,8 @@ class PdfReader
     public function analyzePython($api_key, $data_file_path='', $wanted_result, $message)
     {
         global $prompts;
+        $taskManager = new TaskManager();
+        $chatHistory = $taskManager->get_student_task_chat_history($this->task_id, $this->class_id, $this->user_username);
         $data = '';
         if (file_exists($data_file_path)) {
             $data = file_get_contents($data_file_path);
@@ -347,6 +423,27 @@ class PdfReader
              {$prompts['analyze_python_prompt_5']}";
 
 
+        //loop through the chat history
+        $chatHistoryArray = [];
+        foreach ($chatHistory as $chat) {
+            $chatHistoryArray[] = [
+                'role' => $chat->message_role,
+                'parts' => [
+                    [
+                        'text' => $chat->user_message,
+                    ],
+                ],
+            ];
+        }
+
+        $chatHistoryArray[] = [
+            'role' => 'user',
+            'parts' => [
+                [
+                    'text' => $message,
+                ],
+            ],
+        ];
 
         $client = new Client();
         $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
@@ -356,18 +453,11 @@ class PdfReader
                     [
                         'text' => $system_prompt
                     ],
-                ],
+            ]
             ],
             'tools' => [['code_execution' => new stdClass()]],
             'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [
-                        [
-                            'text' => $message,
-                        ],
-                    ],
-                ],
+                $chatHistoryArray
             ],
             'generationConfig' => [
                 'temperature' => 1,
@@ -395,12 +485,91 @@ class PdfReader
                 }
             
                 if (!empty($text)) {
+                    $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
+                    $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $text);
                     return $text; // Return the concatenated text
                 } else {
                     throw new Exception("Text content not found in the response");
                 }
             } else {
                 throw new Exception("Text parts not found in the response");
+            }
+        } catch (RequestException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            throw $e;
+        }
+    }
+
+
+    public function analyzePythonQuestion($api_key, $message)
+    {
+        global $prompts;
+
+        $taskManager = new TaskManager();
+        $chatHistory = $taskManager->get_student_task_chat_history($this->task_id, $this->class_id, $this->user_username);
+
+        $chatHistoryArray = [];
+        foreach ($chatHistory as $chat) {
+            $chatHistoryArray[] = [
+                'role' => $chat->message_role,
+                'parts' => [
+                    [
+                        'text' => $chat->user_message,
+                    ],
+                ],
+            ];
+        }
+
+        $chatHistoryArray[] = [
+            'role' => 'user',
+            'parts' => [
+                [
+                    'text' => $message,
+                ],
+            ],
+        ];
+
+        $system_prompt = $prompts['analyze_python_question_prompt'];
+
+        $client = new Client();
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $jsonData = [
+            'systemInstruction' => [
+                'parts' => [
+                    [
+                        'text' => $system_prompt
+                    ],
+                ],
+            ],
+            'contents' => [
+                $chatHistoryArray
+            ],
+            'generationConfig' => [
+                'temperature' => 1,
+                'topK' => 64,
+                'topP' => 0.95,
+                'maxOutputTokens' => 8192,
+                'responseMimeType' => 'text/plain',
+            ],
+        ];
+    
+        try {
+            $response = $client->post($url, [
+                'headers' => ['Content-Type' => 'application/json'],
+                'json' => $jsonData,
+            ]);
+    
+            $responseData = json_decode($response->getBody()->getContents(), true);            
+            if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
+                // Return only the text part
+                $text = $responseData['candidates'][0]['content']['parts'][0]['text'];
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $text);
+
+                return $text;
+            } else {
+                throw new Exception("Text content not found in the response");
             }
         } catch (RequestException $e) {
             throw $e;
@@ -461,6 +630,7 @@ class PdfReader
     public function analyzeOrangeQuestion($api_key, $data_file_path='', $wanted_result, $message)
     {
         global $prompts;
+        $taskManager = new TaskManager();
 
         $docsUrls = null;
         $docsUrlsFilePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/docs_urls.json';
@@ -627,15 +797,11 @@ class PdfReader
                 $tempFilePath = tempnam(sys_get_temp_dir(), 'url_texts_');
                 file_put_contents($tempFilePath, $url_texts);
 
-                // TODO: 
-                // 1. get tempfile uri
-                // 2. use the uri for request to question with the text file
-                // 3. return the response
-                // 4. maybe later make the search for urls deeper by one more level
                 $tempFileUri = $this->uploadFileNew($api_key, $tempFilePath, 'url_texts_.txt', 'text/plain')[0];
                 $system_prompt = "You must answer the question using the text and some general knowledge. Do not mention where you got the answer. Speak in Lithuanian!";
                 $answer = $this->analyzeTxt($api_key, $tempFileUri, $english_prompt , $system_prompt);
-
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $answer);
                 return $answer;
 
 

@@ -16,13 +16,6 @@ $api_connector = new ApiConnector('');
 $user_manager = new UserManager();
 $current_task = "";
 $taskManager = new TaskManager();
-
-if(isset($_GET['task_id'])){
-    $current_task = $taskManager->get_task($_GET['task_id']);
-}
-else {
-    $current_task = $lang['no_task_selected'];
-}
 $username = '';
 $user_excel_string = '';
 $pdf_document_talking = true;
@@ -52,6 +45,13 @@ if (isset($_SESSION['jwt_token'])) {
 else {
     wp_redirect(home_url('/itaiassistant101/login'));
     exit();
+}
+
+if(isset($_GET['task_id'])){
+    $current_task = $taskManager->get_task($_GET['task_id'], $username);
+}
+else {
+    $current_task = $lang['no_task_selected'];
 }
 // OpenAI API settings
 $API_KEY = $user_manager->get_class_API_key($class_id);
@@ -234,14 +234,17 @@ function chatGPT($messages) {
 }
 
 function loadChatHistory(): void {
-    if (isset($_SESSION['chat_parameters'])) {
-        $chatHistory = $_SESSION['chat_parameters']['contents'];
-        foreach ($chatHistory as $message) {
-            $role = $message['role'];
-            $content = $message['content'];
-            echo "displayMessage('$content', '$role');";
-        }
-    }
+    global $current_task;
+    global $username;
+    $taskManager = new TaskManager();
+    $chatHistory = $taskManager->get_student_task_chat_history($current_task->task_id, $current_task->class_id, $username);
+    error_log('chat history: ' . print_r($chatHistory, true));
+    foreach ($chatHistory as $message) {
+        error_log('chat history message: ' . $message->user_message);
+        $role = $message->message_role;
+        // $content = htmlspecialchars($message->user_message, ENT_QUOTES, 'UTF-8');
+        $content = json_encode($message->user_message);
+        echo "displayMessage($content, \"$role\");";  }
 }
 
 // Function to process user input and generate a response
@@ -308,7 +311,7 @@ function uploadFile() {
         global $user_excel_string;
         global $API_KEY;
         global $current_task;
-        $PDFReader = new PDFReader();
+        $PDFReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
         $folderPath = WP_CONTENT_DIR . '/ITAIAssistant101/' . $username . '/' . 'TASK' . $current_task->task_id;
         error_log('folderPath when uploading: ' . $folderPath);
         if (!is_dir($folderPath)) {
@@ -361,8 +364,10 @@ function call_embedded_pdf($user_message) {
     call_embedded_ocr_pdf($user_message);
     return;
 
+    global $current_task;
+
     $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
-    $pdfReader = new PdfReader();
+    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
     $text_array = $pdfReader->getTextFromPages($filePath);
 
     // merge passages shorter than 500 words
@@ -392,8 +397,10 @@ function call_embedded_pdf($user_message) {
 
 function summarize_pdf() {
     $pdf_document_talking = false;
+    global $current_task;
+    global $username;
     $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
-    $pdfReader = new PdfReader();
+    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
     $text_array = $pdfReader->getTextFromPages($filePath);
 
     // Merge passages shorter than 500 words
@@ -432,8 +439,10 @@ function summarize_pdf() {
 
 function get_example_questions_from_pdf() {
     $pdf_document_talking = false;
+    global $current_task;
+    global $username;
     $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
-    $pdfReader = new PdfReader();
+    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
     $text_array = $pdfReader->getTextFromPages($filePath);
 
     // Merge passages shorter than 500 words
@@ -472,14 +481,18 @@ function get_example_questions_from_pdf() {
 
 function call_embedded_ocr_pdf($message, $fileUri = '') { 
     global $API_KEY;
-    $pdfReader = new PdfReader();
+    global $current_task;
+    global $username;
+    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
     echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message);
     return true;
 }
 
 function call_embedded_ocr_excel($message, $fileUri = '') { 
     global $API_KEY;
-    $pdfReader = new PdfReader();
+    global $current_task;
+    global $username;
+    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
     echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message);
     return true;
 }
@@ -585,7 +598,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         elseif($input === 'task-questions') {
             $fileUri = urldecode($_POST['fileUri']);
-            $pdfReader = new PdfReader();
+            $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
             $system_prompt = $prompts['task_questions_system_prompt'];
             $prompt = $prompts['task_questions_prompt'];
             echo $pdfReader->analyzePdfSelfCheck($API_KEY, $fileUri, $prompt, $system_prompt);
@@ -641,15 +654,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = uploadFile();
             $task_id = $_POST['task_id'];
             $class_id = $_POST['class_id'];
-            $task = $taskManager->get_task($task_id);
+            $task = $taskManager->get_task($task_id, $username);
             $user_username = $username;
             $solution_file = $result[0];
             $solution_file_uri = $result[1];
             $taskManager->insert_student_task_solution($task_id, $class_id, $user_username, $solution_file, $solution_file_uri);
-            $pdfReader = new PdfReader();
+            $pdfReader = new PdfReader($task_id, $class_id, $username);
+            $correct_solution_uri = $task->task_file_correct;
             if ($task->task_type == 'Excel') {
+                // TODO fix old file uri problem in other file types as well
                 $prompt = $prompts['done_excel_task_prompt'];
-                echo $pdfReader->analyzeExcel($API_KEY, $solution_file_uri, $task->clean_task_file_uri, $prompt);
+                if (!$pdfReader->fileExists($API_KEY, $task->clean_task_file_uri)) {
+                    $filePath  = $task->task_file_correct;
+                    $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
+                    $fileName = pathinfo($filePath, PATHINFO_FILENAME);
+                    $excel_reader = new ExcelReader($filePath);
+                    $excel_data = $excel_reader->readDataWithCoordinates();
+                    // move excel_data to text file with the same name to the same path but the extension is .txt
+                    $textFilePath = str_replace($fileExtension, 'txt', $filePath);
+                    $correct_solution_uri = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain')[0];
+                    $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $current_task->task_file_uri, $fileUri2, $current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
+                }
+                echo $pdfReader->analyzeExcel($API_KEY, $solution_file_uri, $correct_solution_uri, $prompt);
                 return "Your uploaded solution: {$solution_file}";
             } elseif ($task->task_type == 'Python') {
                 // $prompt = $prompts['done_python_task_prompt'];
@@ -671,7 +697,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif($input === 'current-task') {
             $task_id = $_GET['task_id'];
             if($task_id != null) {
-                $current_task = $taskManager->get_task($task_id);
+                $current_task = $taskManager->get_task($task_id, $username);
                 echo json_encode($current_task);
             }
             else {
@@ -681,9 +707,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif($input === 'current-class-id') {
             echo json_encode($class_id);
         }
+        elseif($input === 'clean-chat-history') {
+            global $current_task;
+            $taskManager = new TaskManager();
+            $studentChatHistory = $taskManager->get_student_task_chat_history($current_task->task_id, $current_task->class_id, $username);
+            foreach ($studentChatHistory as $chat) {
+                $taskManager->delete_student_task_chat_history($chat->id);
+            }
+            echo json_encode('Chat history cleared');
+        }
         else {
                 if ($current_task->task_type == 'PDF') {
-                    $pdfReader = new PdfReader();
+                    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
                     $fileUri = $current_task->task_file_uri;
                     if (!$pdfReader->fileExists($API_KEY, $fileUri)) {
                         $fileUri = $pdfReader->uploadFileNew($API_KEY, $current_task->task_file_clean, 'task111.pdf')[0];
@@ -692,7 +727,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     call_embedded_ocr_pdf( $prompts["ask_pdf_prompt1"] . $input . $prompts["ask_pdf_prompt2"], $fileUri);
                 }
                 elseif ($current_task->task_type == 'Excel') {
-                    $pdfReader = new PdfReader();
+                    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
                     $taskManager = new TaskManager();
                     $student_solution = $taskManager->get_first_student_task_solution($current_task->task_id, $current_task->class_id, $username);
                     //check if student solution exists
@@ -749,8 +784,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $response = $pdfReader->analyzeExcelQuestion($API_KEY, $fileUri1, $fileUri2, $input);
                     echo $response;
                 }
+                elseif($current_task->task_type == 'Python') {
+                    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
+                    $response = $pdfReader->analyzePythonQuestion($API_KEY, $input);
+                    echo $response;
+                }
                 elseif($current_task->task_type == 'Orange') {
-                    $pdfReader = new PdfReader();
+                    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
                     $response = $pdfReader->analyzeOrangeQuestion($API_KEY, $current_task->orange_data_file_uri, $current_task->orange_program_execution_result, $input);
                     echo $response;
                 }
@@ -781,6 +821,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootbox.js/6.0.0/bootbox.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
+        .float-right {
+            float: right;
+        }
         .card .btn.btn-link.collapsed {
             text-align: left;
         }
@@ -930,9 +973,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <br>
             <br>
-            <div class="text-center"></div>
+            <div class="text-center">
                 <a href="login.php?lang=en" onclick="event.preventDefault(); window.location.href='<?php echo home_url('/itaiassistant101/login?lang=en'); ?>';"><?php echo $lang['lang_en'] ?></a>
                 | <a href="login.php?lang=lt" onclick="event.preventDefault(); window.location.href='<?php echo home_url('/itaiassistant101/login?lang=lt'); ?>';"><?php echo $lang['lang_lt'] ?></a>
+                <istor class="button is-warning float-right" onclick="cleanHistory()"><?php echo $lang['clean_chat_history'] ?></button>
             </div>
         </div>
     </section>
@@ -1438,6 +1482,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     console.error('Failed to parse JSON or no self check questions in task:', e);
                 } 
             }
+            else {
+                <?php loadChatHistory(); ?>
+            }
         }
 
         function waitForMessageBubblesToAddSelfCheckQuestions(questions) {
@@ -1447,6 +1494,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     clearInterval(interval);
                     const elementToAddAfter = messageBubbles[messageBubbles.length - 1].children[messageBubbles[messageBubbles.length - 1].children.length - 1];
                     createSelfCheckAccordion(questions, elementToAddAfter);
+                    <?php loadChatHistory(); ?>
                 }
             }, 100); // Check every 0.1 seconds
         }
@@ -1625,6 +1673,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             })
             .catch(error => {
                 console.error('An error occurred:', error);
+            });
+        }
+
+        function cleanHistory() {
+            bootbox.confirm({
+                title: "<?php echo $lang['confirm_clean_chat_history']; ?>",
+                message: "<?php echo $lang['confirm_clean_chat_history']; ?>",
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                    }
+                },
+                callback: function (result) {
+                    if(result) {
+                        fetch('', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'message=clean-chat-history',
+                        })
+                        .then(response => response.json())
+                        .then(result => {
+                            // console.log('Chat history cleaned:', result);
+                            chatContainer.innerHTML = '';
+                            bootbox.alert("<?php echo $lang['chat_history_cleaned']; ?>");
+                            sendIntroMessage();
+                            updateChatUI();
+                        })
+                        .catch(error => {
+                            console.error('An error occurred:', error);
+                        });
+                    }
+                }
             });
         }
 
@@ -2111,7 +2196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         window.addEventListener("load", function() {
             setTimeout(function() {
-                <?php //loadChatHistory(); ?>
+                
                 sendIntroMessage();
                 console.log('Chat history loaded');
                 getCurrentClassId();

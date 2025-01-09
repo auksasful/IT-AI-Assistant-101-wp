@@ -104,6 +104,9 @@
         'error_saving_task' => 'Klaida išsaugant užduotį',
         'you_selected' => 'Jūs pasirinkote',
         'self_check_questions' => 'Savikontrolės klausimai',
-        'logout_confirmation_header' => 'Atsijungimo patvirtinimas'
+        'logout_confirmation_header' => 'Atsijungimo patvirtinimas',
+        'confirm_clean_chat_history' => 'Ar tikrai norite išvalyti pokalbių istoriją?',
+        'chat_history_cleaned' => 'Pokalbių istorija išvalyta',
+        'clean_chat_history' => 'Išvalyti pokalbių istoriją',
     );
 ?>
