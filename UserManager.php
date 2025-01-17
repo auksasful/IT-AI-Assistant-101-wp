@@ -250,6 +250,14 @@ class UserManager {
         return true;
     }
 
+    // function to check which teacher is tied to the student
+    public function get_tied_teacher($username) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        $user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE user_username = %s", $username));
+        return $user->tied_to_teacher;
+    }
+
     public function update_user_tied_request($username, $teacher_username, $assign) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'it_ai_assistant101_user';

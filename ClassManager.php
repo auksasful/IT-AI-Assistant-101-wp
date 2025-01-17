@@ -21,13 +21,13 @@ class ClassManager {
         );
         //get the last inseted entry and it's field class_id value
         $class_id = $this->db->insert_id;
-        $this->insert_class_user($class_id, $class_main_teacher);
+        $this->insert_class_user($class_id, $class_main_teacher, '');
         if($default_class) {
             $this->set_default_class($class_main_teacher, $class_id);
         }
     }
 
-    public function insert_class_user($class_id, $user_username) {
+    public function insert_class_user($class_id, $user_username, $teacher_username) {
         $table_name = $this->db->prefix . 'it_ai_assistant101_class_user';
         // check if not exists
         $class_user_count = $this->db->get_var($this->db->prepare("SELECT COUNT(*) FROM $table_name WHERE class_id = %d AND user_username = %s", $class_id, $user_username));
@@ -40,6 +40,14 @@ class ClassManager {
                 'class_id' => $class_id,
                 'user_username' => $user_username
             )
+        );
+
+        $user_table = $this->db->prefix . 'it_ai_assistant101_user';
+        // update the default_class_id and last_used_class_id of the user
+        $this->db->update(
+            $user_table,
+            array('default_class_id' => $class_id, 'last_used_class_id' => $class_id, 'tied_to_teacher' => $teacher_username, 'tied_request' => ''),
+            array('user_username' => $user_username)
         );
     }
 
@@ -55,7 +63,15 @@ class ClassManager {
         $table_name = $this->db->prefix . 'it_ai_assistant101_class_user';
         $sql = "SELECT * FROM $table_name WHERE class_id = %d";
         $results = $this->db->get_results($this->db->prepare($sql, $class_id));
-        return $results;
+        // get users from the users table
+        $user_table = $this->db->prefix . 'it_ai_assistant101_user';
+        $finalResults = array();
+        foreach($results as $key => $result) {
+            $user = $this->db->get_row($this->db->prepare("SELECT * FROM $user_table WHERE user_username = %s", $result->user_username));
+            // append user to the FINAL result
+            $finalResults[] = $user;
+        }
+        return $finalResults;
     }
 
     public function remove_class_user($class_id, $user_username) {
@@ -66,6 +82,14 @@ class ClassManager {
                 'class_id' => $class_id,
                 'user_username' => $user_username
             )
+        );
+
+        $user_table = $this->db->prefix . 'it_ai_assistant101_user';
+        // update the default_class_id and last_used_class_id of the user
+        $this->db->update(
+            $user_table,
+            array('default_class_id' => 0, 'last_used_class_id' => 0, 'tied_to_teacher' => '', 'tied_request' => ''),
+            array('user_username' => $user_username)
         );
     }
 

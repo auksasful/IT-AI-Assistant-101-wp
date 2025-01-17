@@ -10,6 +10,7 @@ require_once 'TaskData.php';
 require_once 'PDFReader.php';
 require_once 'TaskManager.php';
 require_once 'languageconfig.php';
+require_once 'ClassManager.php';
 
 $api_connector = new ApiConnector('');
 // $classManager = new ClassManager();
@@ -17,6 +18,7 @@ $user_manager = new UserManager();
 $current_task = "";
 $taskManager = new TaskManager();
 $username = '';
+$classManager = new ClassManager();
 $user_excel_string = '';
 $pdf_document_talking = true;
 $correct_excel_sting = ' [A1] => Stačiakampio plotas S = [B1] => [C1] => [D1] => [E1] => 140 [F1] => dm2 [G1] => [H1] => [I1] => [J1] => [A2] => a, dm [B2] => 2 [C2] => 1 [D2] => 7 [E2] => 28 [F2] => 14 [G2] => 1.4 [H2] => [I2] => [J2] => [A3] => b, dm [B3] => =E1/B2 ( 70 ) [C3] => =E1/C2 ( 140 ) [D3] => =E1/D2 ( 20 ) [E3] => =E1/E2 ( 5 ) [F3] => =E1/F2 ( 10 ) [G3] => =E1/G2 ( 100 ) [H3] => [I3] => [J3] => ';
@@ -32,7 +34,7 @@ if (isset($_SESSION['jwt_token'])) {
         $current_user = $user_manager->get_user_by_username($username);
         $class_id = $current_user->last_used_class_id;
         if (!$class_id) {
-            wp_redirect(home_url('/itaiassistant101/dashboard'));
+            wp_redirect(home_url('/itaiassistant101/joinclass'));
             exit();
         }
         $message = home_url('/itaiassistant101');
@@ -509,6 +511,40 @@ function getTasksByClassId($class_id) {
     return $taskManager->get_tasks_by_class_id($class_id, $username);
 }
 
+function getClassList() {
+    global $classManager;
+    global $username;
+    return $classManager->get_classes_by_username($username);
+}
+
+function getClassUserList($class_id) {
+    global $classManager;
+    global $user_manager;
+    global $username;
+    $current_user = $user_manager->get_user_by_username($username);
+    if ($current_user->user_role == 'teacher') {
+        $returnArray = $user_manager->get_students_by_teacher($username);
+        // $returnArray[] = $current_user;
+        return $returnArray;
+    }
+    else {
+        return $classManager->get_class_users($class_id);
+    }
+}
+
+function removeClassUser($class_id, $username) {
+    global $classManager;
+    error_log('Removing user ' . $username . ' from class ' . $class_id);
+    $classManager->remove_class_user($class_id, $username);
+}
+
+function acceptUserToClass($class_id, $user_id) {
+    global $classManager;
+    global $username;
+    error_log('Accepting user ' . $user_id . ' to class ' . $class_id);
+    $classManager->insert_class_user($class_id, $user_id, $username);
+}
+
 
 function convert_path_to_url($full_path) {
     // Split the path to extract the domain name
@@ -637,6 +673,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $class_id = $_POST['class_id'];
             $tasks = getTasksByClassId($class_id);
             echo json_encode($tasks);
+        }
+        elseif($input === 'class-list') {
+            $classes = getClassList();
+            echo json_encode($classes);
+        }
+        elseif($input === 'class-user-list')
+        {
+            $class_id = $_POST['class_id'];
+            $users = getClassUserList($class_id);
+            echo json_encode($users);
+        }
+        elseif($input === 'delete-user-from-class')
+        {
+            $class_id = $_POST['class_id'];
+            $user_id = $_POST['user_id'];
+            removeClassUser($class_id, $user_id);
+        }
+        elseif($input === 'accept-user-to-class')
+        {
+            $class_id = $_POST['class_id'];
+            $user_id = $_POST['user_id'];
+            acceptUserToClass($class_id, $user_id);
+        }
+        elseif($input === 'change-password') {
+            $old_password = $_POST['old_password'];
+            $new_password = $_POST['new_password'];
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+            $user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE user_username = %s", $username));
+
+            if ($user && password_verify($old_password, $user->user_password)) {
+                $jwt_token = $api_connector->test_connection($user->user_username, $user->user_role, false);
+
+                if ($jwt_token) {
+                    $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
+                    $user_manager->update_password($username, $hashed_password);
+                    return true;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        elseif($input === 'add-new-class') {
+            $new_api_key = $_POST['class_name'];
+            $classManager->insert_class($class_name, $username, true);
+            return true;
+        }
+        elseif($input === 'change-api-key') {
+            $new_api_key = $_POST['new_api_key'];
+            return $user_manager->update_user_api_key($username, $new_api_key);
         }
         elseif($input === 'task-file') {
             $result = uploadFile();
@@ -812,9 +900,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html>
 <head>
     <title><?php echo $lang['chatbot_title']; ?></title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@3.0.7/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
@@ -880,6 +972,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             overflow-y: auto;
             height: 70%;
         }
+        #class-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            height: 70%;
+        }
         .top-left-buttons {
             height: 15%;
         }
@@ -934,6 +1031,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-style: italic;
             color: grey;
         }
+        .bootbox-input.bootbox-input-password.form-control {
+            width: 90%;
+        }
+        .fa.fa-eye-slash.password-toggle {
+            padding: 1.1em;
+        }
+        .fa.fa-eye.password-toggle {
+            padding: 1.1em;
+        }
+        .form-switch {
+            padding-left: 3em;
+        }
     </style>
 </head>
 <body>
@@ -946,7 +1055,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="task-list"></div>
             <div class="bottom-left-buttons">
             <div class="settings-menu">
-                <button class="button is-primary"><?php echo $lang['settings']; ?></button>
+                <button class="button is-primary" onclick="openSettingsModal()"><?php echo $lang['settings']; ?></button>
                 <button class="button is-danger" onclick="confirmLogout()"><?php echo $lang['logout']; ?></button>
             </div>
             </div>
@@ -971,12 +1080,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div id="loader">
                 <progress class="progress is-small is-primary" max="100"></progress>
             </div>
-            <br>
+            <button class="button is-warning float-right" onclick="cleanHistory()"><?php echo $lang['clean_chat_history'] ?></button>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" name="use_document_information" id="useDocumentInformation" value="1" checked onchange="handleSwitchChange(this)">
+                <label class="form-check-label" for="useDocumentInformation">
+                    <?php echo $lang['use_document_information']; ?>
+                </label>
+            </div>
             <br>
             <div class="text-center">
                 <a href="login.php?lang=en" onclick="event.preventDefault(); window.location.href='<?php echo home_url('/itaiassistant101/login?lang=en'); ?>';"><?php echo $lang['lang_en'] ?></a>
                 | <a href="login.php?lang=lt" onclick="event.preventDefault(); window.location.href='<?php echo home_url('/itaiassistant101/login?lang=lt'); ?>';"><?php echo $lang['lang_lt'] ?></a>
-                <istor class="button is-warning float-right" onclick="cleanHistory()"><?php echo $lang['clean_chat_history'] ?></button>
             </div>
         </div>
     </section>
@@ -1113,28 +1227,125 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
-    <!-- Add Class Modal -->
-    <div class="modal" id="addClassModal">
+        <!-- Add Class Modal -->
+        <div class="modal" id="addClassModal">
+            <div class="modal-background"></div>
+            <div class="modal-card">
+                <header class="modal-card-head">
+                    <p class="modal-card-title"><?php echo $lang['select_class']; ?></p>
+                    <button class="delete" aria-label="close" onclick="closeClassModal()"></button>
+                </header>
+                <section class="modal-card-body">
+                    <div class="field">
+                        <label class="label"><?php echo $lang['available_classes']; ?></label>
+                        <div class="control">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th><?php echo $lang['class_name']?></th>
+                                            <th><?php echo $lang['main_teacher']?></th>
+                                            <th><?php echo $lang['creation_date']?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="class-list">
+                                        <!-- Add rows here dynamically using PHP or JavaScript -->
+                                    </tbody>
+                                </table>
+                        </div>
+                    </div>
+                </section>
+                <footer class="modal-card-foot">
+                    <button class="button" onclick="closeClassModal()"><?php echo $lang['close']; ?></button>
+                    <button class="button is-primary" onclick="addNewClass()"><?php echo $lang['add_new_class']; ?></button>
+                </footer>
+            </div>
+        </div>
+
+    <!-- User List Modal -->
+    <div class="modal" id="userListModal">
         <div class="modal-background"></div>
         <div class="modal-card">
             <header class="modal-card-head">
-                <p class="modal-card-title"><?php echo $lang['select_class']; ?></p>
-                <button class="delete" aria-label="close" onclick="closeClassModal()"></button>
+                <p class="modal-card-title"><?php echo $lang['class_user_list']; ?></p>
+                <button class="delete" aria-label="close" onclick="closeUserListModal()"></button>
             </header>
             <section class="modal-card-body">
                 <div class="field">
-                    <label class="label"><?php echo $lang['available_classes']; ?></label>
+                    <label class="label"><?php echo $lang['class_user_list']; ?></label>
                     <div class="control">
-                        <div class="list">
-                            <div class="list-item" onclick="selectClass('Class 1')">Class 1</div>
-                            <div class="list-item" onclick="selectClass('Class 2')">Class 2</div>
-                            <div class="list-item" onclick="selectClass('Class 3')">Class 3</div>
-                        </div>
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th><?php echo $lang['user_username']?></th>
+                                        <th><?php echo $lang['user_name']?></th>
+                                        <th><?php echo $lang['user_surname']?></th>
+                                        <th><?php echo $lang['user_actions']?></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="class-user-list">
+                                    <!-- Add rows here dynamically using PHP or JavaScript -->
+                                </tbody>
+                            </table>
                     </div>
                 </div>
             </section>
             <footer class="modal-card-foot">
-                <button class="button" onclick="closeClassModal()"><?php echo $lang['close']; ?></button>
+                <button class="button" onclick="closeUserListModal()"><?php echo $lang['close']; ?></button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title"><?php echo $lang['settings']; ?></p>
+                <button class="delete" aria-label="close" onclick="closeSettingsModal()"></button>
+            </header>
+            <section class="modal-card-body">
+                <div class="columns">
+                    <div class="column">
+                        <!-- change api_key button -->
+                        <div class="field">
+                            <label class="label"><?php echo $lang['change_api_key']; ?></label>
+                            <div class="control">
+                                <button class="button is-primary" onclick="changeApiKey()"><?php echo $lang['change']; ?></button>
+                            </div>
+                        </div>
+
+                        <!-- change password button -->
+                        <div class="field">
+                            <label class="label"><?php echo $lang['change_password']; ?></label>
+                            <div class="control">
+                                <button class="button is-primary" onclick="changePassword()"><?php echo $lang['change']; ?></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <!-- import tasks button -->
+                        <div class="field">
+                            <label class="label"><?php echo $lang['import_tasks'] ?></label>
+                            <div class="control">
+                                <button class="button is-primary" onclick="importTasks()"><?php echo $lang['import'] ?></button>
+                            </div>
+                        </div>
+
+                        <!-- export tasks button -->
+                        <div class="field">
+                            <label class="label"><?php echo $lang['export_tasks'] ?></label>
+                            <div class="control">
+                                <button class="button is-primary" onclick="exportTasks()"><?php echo $lang['export'] ?></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button" onclick="closeSettingsModal()"><?php echo $lang['cancel']; ?></button>
+                <!-- <button class="button is-primary" onclick="saveSettings()"><?php echo $lang['save']; ?></button> -->
             </footer>
         </div>
     </div>
@@ -1669,6 +1880,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .then(classId => {
                 console.log('Current class ID: ', classId);
                 getTasksList(classId);
+                getClassList();
                 currentClassId = classId;
             })
             .catch(error => {
@@ -1755,13 +1967,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     icon.style.height = '1.25em';
                     icon.style.marginRight = '0.625em';
                     if (task.task_type === 'PDF') {
-                        icon.src = "<?php echo convert_path_to_url(WP_CONTENT_DIR . '/ITAIAssistant101/icons/pdf.png')?>";
+                        icon.src = "<?php echo plugin_dir_url(__FILE__) . 'icons/pdf.png'; ?>";
                     } else if (task.task_type === 'Excel') {
-                        icon.src = "<?php echo convert_path_to_url(WP_CONTENT_DIR . '/ITAIAssistant101/icons/excel.png');?>";
+                        icon.src = "<?php echo plugin_dir_url(__FILE__) . 'icons/excel.png'; ?>";
                     } else if (task.task_type === 'Python') {
-                        icon.src = "<?php echo convert_path_to_url(WP_CONTENT_DIR . '/ITAIAssistant101/icons/python.png');?>";
+                        icon.src = "<?php echo plugin_dir_url(__FILE__) . 'icons/python.png'; ?>";
                     } else if (task.task_type === 'Orange') {
-                        icon.src = "<?php echo convert_path_to_url(WP_CONTENT_DIR . '/ITAIAssistant101/icons/orange.png');?>";
+                        icon.src = "<?php echo plugin_dir_url(__FILE__) . 'icons/orange.png'; ?>";
                     }
                     
                     const textContent = document.createElement('span');
@@ -1769,7 +1981,107 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     newTaskItem.appendChild(icon);
                     newTaskItem.appendChild(textContent);
-                    
+                    // Create three-dot menu
+                    const menuWrapper = document.createElement('div');
+                    menuWrapper.style.float = 'right';
+                    menuWrapper.style.marginRight = '0.5em';
+                    menuWrapper.style.position = 'relative';
+                    menuWrapper.style.clear = 'right';
+
+                    const threeDots = document.createElement('i');
+                    threeDots.classList.add('fas', 'fa-ellipsis-v');
+                    threeDots.style.cursor = 'pointer';
+                    threeDots.style.fontSize = '1.2em';
+                    threeDots.addEventListener('mouseover', function() {
+                        threeDots.style.color = 'gray';
+                    });
+                    threeDots.addEventListener('mouseout', function() {
+                        threeDots.style.color = '';
+                    });
+
+                    const dropdownMenu = document.createElement('div');
+                    dropdownMenu.style.display = 'none';
+                    dropdownMenu.style.position = 'absolute';
+                    dropdownMenu.style.right = '0';
+                    dropdownMenu.style.backgroundColor = '#fff';
+                    dropdownMenu.style.border = '1px solid #ccc';
+                    dropdownMenu.style.padding = '0.5em';
+                    dropdownMenu.style.minWidth = '150px';
+
+                    const editOption = document.createElement('div');
+                    editOption.textContent = 'Edit';
+                    editOption.style.cursor = 'pointer';
+                    editOption.addEventListener('mouseover', function() {
+                        editOption.style.backgroundColor = '#eee';
+                    });
+                    editOption.addEventListener('mouseout', function() {
+                        editOption.style.backgroundColor = '';
+                    });
+                    editOption.onclick = function(e) {
+                        e.stopPropagation();
+                        editTask(task.task_id);
+                        dropdownMenu.style.display = 'none';
+                    };
+                    dropdownMenu.appendChild(editOption);
+
+                    const deleteOption = document.createElement('div');
+                    deleteOption.textContent = 'Delete';
+                    deleteOption.style.cursor = 'pointer';
+                    deleteOption.addEventListener('mouseover', function() {
+                        deleteOption.style.backgroundColor = '#eee';
+                    });
+                    deleteOption.addEventListener('mouseout', function() {
+                        deleteOption.style.backgroundColor = '';
+                    });
+                    deleteOption.onclick = function(e) {
+                        e.stopPropagation();
+                        deleteTask(task.task_id);
+                        dropdownMenu.style.display = 'none';
+                    };
+                    dropdownMenu.appendChild(deleteOption);
+
+                    threeDots.onclick = function(e) {
+                        e.stopPropagation();
+                        dropdownMenu.style.display = (dropdownMenu.style.display === 'none') ? 'block' : 'none';
+                    };
+
+                    document.addEventListener('click', function(evt) {
+                        if (!menuWrapper.contains(evt.target)) {
+                            dropdownMenu.style.display = 'none';
+                        }
+                    });
+                    threeDots.onclick = function(e) {
+                        e.stopPropagation();
+                        bootbox.dialog({
+                            title: `<?php echo $lang['task_']?>#${task.task_id}<?php echo $lang['_information']; ?>`,
+                            message: `<p><?php echo $lang['name_']?>${task.task_name}</p><p><?php echo $lang['type_']; ?>${task.task_type}</p>`,
+                            size: 'large',
+                            buttons: {
+                                cancel: {
+                                    label: '<?php echo $lang['cancel']; ?>',
+                                    className: 'btn-secondary'
+                                },
+                                edit: {
+                                    label: '<?php echo $lang['edit']; ?>',
+                                    className: 'btn-primary',
+                                    callback: function() {
+                                        editTask(task.task_id);
+                                    }
+                                },
+                                delete: {
+                                    label: '<?php echo $lang['delete']; ?>',
+                                    className: 'btn-danger',
+                                    callback: function() {
+                                        deleteTask(task.task_id);
+                                    }
+                                }
+                            }
+                        });
+                    };
+
+                    menuWrapper.appendChild(threeDots);
+                    menuWrapper.appendChild(dropdownMenu);
+                    newTaskItem.appendChild(menuWrapper);
                     newTaskItem.onclick = function() {
                         reloadWithTaskId(task.task_id);
                     };
@@ -1781,8 +2093,340 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
+
+        function getClassList() {
+            console.log('Fetching class list');
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=class-list',
+            })
+            .then(response => response.json())
+            .then(classes => {
+                const classList = document.querySelector('#class-list');
+                classList.innerHTML = '';
+                classes.forEach(classItem => {
+                    console.log(classItem);
+                    const newClassItem = document.createElement('tr');
+
+                    const classNameElement = document.createElement('td');
+                    classNameElement.textContent = classItem.class_name;
+                    newClassItem.appendChild(classNameElement);
+
+                    const classMainTeacherElement = document.createElement('td');
+                    classMainTeacherElement.textContent = classItem.class_main_teacher;
+                    newClassItem.appendChild(classMainTeacherElement);
+
+                    const classCreationDateElement = document.createElement('td');
+                    classCreationDateElement.textContent = classItem.class_creation_date;
+                    newClassItem.appendChild(classCreationDateElement);
+
+                    newClassItem.onclick = function() {
+                        selectClass(classItem.class_id);
+                    };
+                    classList.appendChild(newClassItem);
+                });
+            })
+            .catch(error => {
+                console.error('An error occurred:', error);
+            });
+        }
+
+        function getClassUserList(classId) {
+            console.log('Fetching class list');
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=class-user-list&class_id=' + classId,
+            })
+            .then(response => response.json())
+            .then(users => {
+                const classUserList = document.querySelector('#class-user-list');
+                classUserList.innerHTML = '';
+                users.forEach(userItem => {
+                    console.log(userItem);
+                    const newUserItem = document.createElement('tr');
+
+                    const classNameElement = document.createElement('td');
+                    classNameElement.textContent = userItem.user_username;
+                    newUserItem.appendChild(classNameElement);
+
+                    const classMainTeacherElement = document.createElement('td');
+                    classMainTeacherElement.textContent = userItem.user_name;
+                    newUserItem.appendChild(classMainTeacherElement);
+
+                    const classCreationDateElement = document.createElement('td');
+                    classCreationDateElement.textContent = userItem.user_surname;
+                    newUserItem.appendChild(classCreationDateElement);
+
+                    // add table cell for actions
+                    const classActionsElement = document.createElement('td');
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = '<?php echo $lang['delete']; ?>';
+                    deleteButton.classList.add('button', 'is-danger');
+                    deleteButton.style.margin = '1px';
+                    deleteButton.onclick = function() {
+                        deleteUserFromClass(userItem.user_username, classId);
+                    };
+                    classActionsElement.appendChild(deleteButton);
+
+                    if (userItem.user_role === 'student' && userItem.tied_request !== '' && userItem.tied_request !== null) {
+                        const acceptToClassButton = document.createElement('button');
+                        acceptToClassButton.textContent = '<?php echo $lang['accept_to_class']; ?>';
+                        acceptToClassButton.classList.add('button', 'is-success');
+                        acceptToClassButton.style.margin = '1px';
+                        acceptToClassButton.id = 'acceptToClassButton-' + userItem.user_id;
+                        acceptToClassButton.onclick = function() {
+                            acceptUserToClass(userItem.user_username, classId);
+                        };
+                        classActionsElement.appendChild(acceptToClassButton);
+                    }
+                    newUserItem.id = 'user-' + userItem.user_id;
+                    newUserItem.appendChild(classActionsElement);
+
+                    classUserList.appendChild(newUserItem);
+                });
+            })
+            .catch(error => {
+                console.error('An error occurred:', error);
+            });
+        }
+
+        function deleteUserFromClass(userId, classId) {
+            bootbox.confirm({
+                title: "<?php echo $lang['confirm_delete_user_from_class']; ?>",
+                message: "<?php echo $lang['confirm_delete_user_from_class']; ?>",
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                    }
+                },
+                callback: function (result) {
+                    if(result) {
+                        fetch('', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'message=delete-user-from-class&user_id=' + userId + '&class_id=' + classId,
+                        })
+                        .then(response => response.json())
+                        .then(result => {
+                            document.getElementById('user-' + userId).remove();
+                            bootbox.alert("<?php echo $lang['user_deleted_from_class']; ?>");
+                        })
+                        .catch(error => {
+                            bootbox.alert("<?php echo $lang['error_deleting_user_from_class']; ?>");
+                        });
+                    }
+                }
+            });
+        }
+
+        function acceptUserToClass(userId, classId) {
+            bootbox.confirm({
+                title: "<?php echo $lang['confirm_accept_user_to_class']; ?>",
+                message: "<?php echo $lang['confirm_accept_user_to_class']; ?>",
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                    }
+                },
+                callback: function (result) {
+                    if(result) {
+                        fetch('', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'message=accept-user-to-class&user_id=' + userId + '&class_id=' + classId,
+                        })
+                        .then(response => response.json())
+                        .then(result => {
+                            document.getElementById('acceptToClassButton-' + userId).remove();
+                            bootbox.alert("<?php echo $lang['user_accepted_to_class_successfully']; ?>");
+
+                        })
+                        .catch(error => {
+                            bootbox.alert("<?php echo $lang['error_accepting_user_to_class']; ?>");
+                        });
+                    }
+                }
+            });
+        }
+
+
+
+
         function addTask() {
             document.getElementById('addTaskModal').classList.add('is-active');
+        }
+
+        function changeApiKey()
+        {
+            bootbox.prompt({
+                title: "<?php echo $lang['change_api_key']; ?>",
+                inputType: 'password',
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                    }
+                },
+                callback: function (result) {
+                    bootbox.confirm({
+                        title: "<?php echo $lang['confirm_change_api_key']; ?>",
+                        message: "<?php echo $lang['confirm_change_api_key']; ?>",
+                        buttons: {
+                            cancel: {
+                                label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                            },
+                            confirm: {
+                                label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                            }
+                        },
+                        callback: function (result) {
+                            if(result) {
+                                fetch('', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/x-www-form-urlencoded',
+                                    },
+                                    body: 'message=change-api-key&api_key=' + result,
+                                })
+                                .then(response => response.json())
+                                .then(result => {
+                                    bootbox.alert("<?php echo $lang['api_key_changed']; ?>");
+                                })
+                                .catch(error => {
+                                    bootbox.alert("<?php echo $lang['error_changing_api_key']; ?>");
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+
+        }
+
+        function changePassword() {
+            bootbox.prompt({
+                title: "<?php echo $lang['enter_old_password']; ?>",
+                inputType: 'password',
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                    }
+                },
+                callback: function (oldPassword) {
+                    if (oldPassword) {
+                        bootbox.prompt({
+                            title: "<?php echo $lang['enter_new_password']; ?>",
+                            inputType: 'password',
+                            buttons: {
+                                cancel: {
+                                    label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                                },
+                                confirm: {
+                                    label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                                }
+                            },
+                            callback: function (newPassword) {
+                                if (newPassword) {
+                                    bootbox.confirm({
+                                        title: "<?php echo $lang['confirm_change_password']; ?>",
+                                        message: "<?php echo $lang['confirm_change_password']; ?>",
+                                        buttons: {
+                                            cancel: {
+                                                label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                                            },
+                                            confirm: {
+                                                label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                                            }
+                                        },
+                                        callback: function (result) {
+                                            if (result) {
+                                                fetch('', {
+                                                    method: 'POST',
+                                                    headers: {
+                                                        'Content-Type': 'application/x-www-form-urlencoded',
+                                                    },
+                                                    body: 'message=change-password&old_password=' + encodeURIComponent(oldPassword) + '&new_password=' + encodeURIComponent(newPassword),
+                                                })
+                                                .then(response => response.json())
+                                                .then(result => {
+                                                    bootbox.alert("<?php echo $lang['password_changed']; ?>");
+                                                })
+                                                .catch(error => {
+                                                    bootbox.alert("<?php echo $lang['error_changing_password']; ?>");
+                                                });
+                                            }
+                                        }
+                                    });
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+        }
+        function addNewClass() {
+            bootbox.prompt({
+            title: "<?php echo $lang['enter_class_name']; ?>",
+            inputType: 'text',
+            buttons: {
+                cancel: {
+                label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                },
+                confirm: {
+                label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                }
+            },
+            callback: function (className) {
+                if (className) {
+                fetch('', {
+                    method: 'POST',
+                    headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'message=add-new-class&class_name=' + encodeURIComponent(className),
+                })
+                .then(response => response.json())
+                .then(result => {
+                    bootbox.alert("<?php echo $lang['class_added_successfully']; ?>");
+                    getClassList(); // Refresh the class list
+                })
+                .catch(error => {
+                    bootbox.alert("<?php echo $lang['error_adding_class']; ?>");
+                });
+                }
+            }
+            });
+        }
+
+        function importTasks()
+        {
+
+        }
+
+        function exportTasks()
+        {
+
         }
 
 
@@ -2091,9 +2735,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('addClassModal').classList.remove('is-active');
         }
 
-        function selectClass(className) {
-            bootbox.alert('<?php echo $lang['you_selected']; ?> ' + className);
+        function openUserListModal() {
+            document.getElementById('userListModal').classList.add('is-active');
+        }
+
+        function closeUserListModal() {
+            document.getElementById('userListModal').classList.remove('is-active');
+        }
+
+        function openSettingsModal() {
+            document.getElementById('settingsModal').classList.add('is-active');
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').classList.remove('is-active');
+        }
+
+        function selectClass(classId) {
+            bootbox.alert('<?php echo $lang['you_selected']; ?> ' + classId);
             closeClassModal();
+            getClassUserList(classId);
+            openUserListModal();
         }
 
         function createSelfCheckAccordion(questions, elementToAddAfter) {
@@ -2170,6 +2832,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
+        function addPasswordToggle(inputElement) {
+            const passwordToggleIcon = document.createElement('i');
+            passwordToggleIcon.classList.add('fa', 'fa-eye-slash', 'password-toggle');
+            passwordToggleIcon.style.position = 'absolute';
+            passwordToggleIcon.style.right = '20px';
+            passwordToggleIcon.style.top = '10px';
+            passwordToggleIcon.style.cursor = 'pointer';
+            
+            inputElement.insertAdjacentElement('afterend', passwordToggleIcon);
+
+            passwordToggleIcon.addEventListener('click', function () {
+                if (inputElement.type === "password") {
+                    inputElement.type = "text";
+                    this.classList.remove("fa-eye-slash");
+                    this.classList.add("fa-eye");
+                } else {
+                    inputElement.type = "password";
+                    this.classList.remove("fa-eye");
+                    this.classList.add("fa-eye-slash");
+                }
+            });
+        }
+
+        function handleSwitchChange(element) {
+            if (element.checked) {
+                console.log("Switch is ON");
+                // Add actions to perform when the switch is ON
+            } else {
+                console.log("Switch is OFF");
+                // Add actions to perform when the switch is OFF
+            }
+        }
+
         document.getElementById('fileInput').addEventListener('change', function() {
             var fileName = this.files[0].name;
             var nextSibling = this.nextElementSibling;
@@ -2203,6 +2898,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 getCurrentTask();
             }, 2000); // 2000 milliseconds = 2 seconds
         });
+
+        // Use MutationObserver to detect when the prompt is inserted into the DOM
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                mutation.addedNodes.forEach(function(addedNode) {
+                    if (addedNode.querySelector) {
+                        const passwordInput = addedNode.querySelector('.bootbox-input-password');
+                        if (passwordInput) {
+                            addPasswordToggle(passwordInput);
+                        }
+                    }
+                });
+            });
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
         
     </script>
 </body>

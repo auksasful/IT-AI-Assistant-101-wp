@@ -19,6 +19,7 @@ function itaiassistant101_rewrite_rule() {
     add_rewrite_rule('^itaiassistant101/ClassList/?', 'index.php?itaiassistant101_ClassList=1', 'top');
     add_rewrite_rule('^itaiassistant101/ClassUserList/?', 'index.php?itaiassistant101_ClassUserList=1', 'top');
     add_rewrite_rule('^itaiassistant101/index/?', 'index.php?itaiassistant101_index=1', 'top');
+    add_rewrite_rule('^itaiassistant101/joinclass/?', 'index.php?itaiassistant101_joinclass=1', 'top');
 }
 add_action('init', 'itaiassistant101_rewrite_rule');
 
@@ -34,6 +35,7 @@ function itaiassistant101_query_vars($vars) {
     $vars[] = 'itaiassistant101_ClassList';
     $vars[] = 'itaiassistant101_ClassUserList';
     $vars[] = 'itaiassistant101_index';
+    $vars[] = 'itaiassistant101_joinclass';
     return $vars;
 }
 add_filter('query_vars', 'itaiassistant101_query_vars');
@@ -60,6 +62,8 @@ function itaiassistant101_template_include($template) {
         return plugin_dir_path(__FILE__) . 'ClassUserList.php';
     } elseif (get_query_var('itaiassistant101_index')) { 
         return plugin_dir_path(__FILE__) . 'index.php';
+    } elseif (get_query_var('itaiassistant101_joinclass')) { 
+        return plugin_dir_path(__FILE__) . 'joinclass.php';
     }
     return $template;
 }

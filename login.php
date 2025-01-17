@@ -152,9 +152,13 @@ if (isset($_SESSION['jwt_token'])) {
         .btn-group .btn {
             width: 48%;
         }
-        .required::after {
-            content: " *";
-            color: red;
+        .required label {
+            font-weight: bold;
+        }
+        .required label:after {
+            color: #e32;
+            content: ' *';
+            display:inline;
         }
         .alert {
             margin-top: 20px;
@@ -170,6 +174,7 @@ if (isset($_SESSION['jwt_token'])) {
     <div id="itaiassistant101_initialButtons" class="btn-group">
         <button id="itaiassistant101_showLogin" class="btn btn-primary"><?php echo $lang['login'] ?></button>
         <button id="itaiassistant101_showRegister" class="btn btn-secondary"><?php echo $lang['register'] ?></button>
+        </br>   
         <button id="itaiassistant101_showChangePassword" class="btn btn-link"><?php echo $lang['forgot_password'] ?></button>
     </div>
 
@@ -185,17 +190,22 @@ if (isset($_SESSION['jwt_token'])) {
                     </div>
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group required">
                 <label for="user_name"><?php echo $lang['name'] ?></label>
                 <input type="text" id="user_name" name="user_name" class="form-control" required>
             </div>
-            <div class="form-group">
+            <div class="form-group required">
                 <label for="user_surname"><?php echo $lang['surname'] ?></label>
                 <input type="text" id="user_surname" name="user_surname" class="form-control" required>
             </div>
-            <div class="form-group">
+            <div class="form-group required">
                 <label for="password"><?php echo $lang['password'] ?></label>
-                <input type="password" id="password" name="password" class="form-control" required>
+                <div class="input-group" id="show_hide_register_password">
+                    <input type="password" id="password" name="password" class="form-control" required>
+                    <div class="input-group-addon">
+                        <a href=""><i class="fa fa-eye-slash" aria-hidden="true"></i></a>
+                    </div>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary" name="form_register"><?php echo $lang['register'] ?></button>
         </form>
@@ -206,23 +216,46 @@ if (isset($_SESSION['jwt_token'])) {
     <div id="itaiassistant101_loginForm" style="display: none;">
         <h2><?php echo $lang['login'] ?></h2>
         <form method="POST">
-            <div class="form-group">
+            <div class="form-group required">
                 <label for="username"><?php echo $lang['username'] ?></label>
                 <input type="text" id="username" name="username" class="form-control" required>
             </div>
-            <div class="form-group">
+            <div class="form-group required">
                 <label for="password"><?php echo $lang['password'] ?></label>
+                <div class="input-group" id="show_hide_login_password">
                 <input type="password" id="password" name="password" class="form-control" required>
+                    <div class="input-group-addon">
+                        <a href=""><i class="fa fa-eye-slash" aria-hidden="true"></i></a>
+                    </div>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary" name="general_login"><?php echo $lang['login'] ?></button>
         </form>
         <button id="itaiassistant101_showRegisterFromLogin" class="btn btn-link"><?php echo $lang['dont_have_account'] ?></button>
         <button id="itaiassistant101_showChangePasswordFormLogin" class="btn btn-link"><?php echo $lang['forgot_password'] ?></button>
     </div>
+    <!-- change password form that takes api_key and password-->
+    <div id="itaiassistant101_changePasswordForm" style="display: none;">
+        <h2><?php echo $lang['forgot_password'] ?></h2>
+        <form method="POST">
+            <div class="form-group required">
+                <label for="api_key"><?php echo $lang['api_key_only_teacher'] ?></label>
+                <div class="input-group" id="show_hide_change_password_api_key">
+                    <input type="text" id="api_key" name="api_key" class="form-control" required>
+                    <div class="input-group-addon">
+                        <a href=""><i class="fa fa-eye-slash" aria-hidden="true"></i></a>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" name="change_password"><?php echo $lang['change_password'] ?></button>
+        </form>
+        <button id="itaiassistant101_showLoginFromChangePassword" class="btn btn-link"><?php echo $lang['login'] ?></button>
+        <button id="itaiassistant101_showRegisterFromChangePassword" class="btn btn-link"><?php echo $lang['register'] ?></button>
+    </div>
 
     <br>
     <br>
-<div class="text-center"></div>
+<div class="text-center">
     <a href="login.php?lang=en" onclick="event.preventDefault(); window.location.href='<?php echo home_url('/itaiassistant101/login?lang=en'); ?>';"><?php echo $lang['lang_en'] ?></a>
     | <a href="login.php?lang=lt" onclick="event.preventDefault(); window.location.href='<?php echo home_url('/itaiassistant101/login?lang=lt'); ?>';"><?php echo $lang['lang_lt'] ?></a>
 </div>
@@ -240,48 +273,63 @@ if (isset($_SESSION['jwt_token'])) {
             $('#itaiassistant101_registerForm').hide();
             $('#itaiassistant101_loginForm').show();
             $('#itaiassistant101_initialButtons').hide();
+            $('#itaiassistant101_changePasswordForm').hide();
         });
 
         $('#itaiassistant101_showRegister').click(function() {
             $('#itaiassistant101_loginForm').hide();
             $('#itaiassistant101_registerForm').show();
             $('#itaiassistant101_initialButtons').hide();
+            $('#itaiassistant101_changePasswordForm').hide();
         });
 
         $('#itaiassistant101_showChangePassword').click(function() {
             $('#itaiassistant101_loginForm').hide();
             $('#itaiassistant101_registerForm').hide();
             $('#itaiassistant101_initialButtons').hide();
+            $('#itaiassistant101_changePasswordForm').show();
         });
 
         $('#itaiassistant101_showLoginFromRegister').click(function() {
             $('#itaiassistant101_registerForm').hide();
             $('#itaiassistant101_loginForm').show();
+            $('#itaiassistant101_initialButtons').hide();
+            $('#itaiassistant101_changePasswordForm').hide();
         });
 
         $('#itaiassistant101_showLoginFromChangePassword').click(function() {
             $('#itaiassistant101_registerForm').hide();
             $('#itaiassistant101_loginForm').show();
+            $('#itaiassistant101_initialButtons').hide();
+            $('#itaiassistant101_changePasswordForm').hide();
         });
 
         $('#itaiassistant101_showRegisterFromLogin').click(function() {
             $('#itaiassistant101_loginForm').hide();
             $('#itaiassistant101_registerForm').show();
+            $('#itaiassistant101_initialButtons').hide();
+            $('#itaiassistant101_changePasswordForm').hide();
         });
 
         $('#itaiassistant101_showRegisterFromChangePassword').click(function() {
             $('#itaiassistant101_loginForm').hide();
             $('#itaiassistant101_registerForm').show();
+            $('#itaiassistant101_initialButtons').hide();
+            $('#itaiassistant101_changePasswordForm').hide();
         });
 
         $('#itaiassistant101_showChangePasswordFormLogin').click(function() {
             $('#itaiassistant101_loginForm').hide();
             $('#itaiassistant101_registerForm').hide();
+            $('#itaiassistant101_initialButtons').hide();
+            $('#itaiassistant101_changePasswordForm').show();
         });
 
         $('#itaiassistant101_showChangePasswordFormRegister').click(function() {
             $('#itaiassistant101_registerForm').hide();
             $('#itaiassistant101_loginForm').hide();
+            $('#itaiassistant101_initialButtons').hide();
+            $('#itaiassistant101_changePasswordForm').show();
         });
 
         $("#show_hide_api_key a").on('click', function(event) {
@@ -294,6 +342,45 @@ if (isset($_SESSION['jwt_token'])) {
                 $('#show_hide_api_key input').attr('type', 'text');
                 $('#show_hide_api_key i').removeClass( "fa-eye-slash" );
                 $('#show_hide_api_key i').addClass( "fa-eye" );
+            }
+        });
+
+        $("#show_hide_register_password a").on('click', function(event) {
+            event.preventDefault();
+            if($('#show_hide_register_password input').attr("type") == "text"){
+                $('#show_hide_register_password input').attr('type', 'password');
+                $('#show_hide_register_password i').addClass( "fa-eye-slash" );
+                $('#show_hide_register_password i').removeClass( "fa-eye" );
+            }else if($('#show_hide_register_password input').attr("type") == "password"){
+                $('#show_hide_register_password input').attr('type', 'text');
+                $('#show_hide_register_password i').removeClass( "fa-eye-slash" );
+                $('#show_hide_register_password i').addClass( "fa-eye" );
+            }
+        });
+
+        $("#show_hide_login_password a").on('click', function(event) {
+            event.preventDefault();
+            if($('#show_hide_login_password input').attr("type") == "text"){
+                $('#show_hide_login_password input').attr('type', 'password');
+                $('#show_hide_login_password i').addClass( "fa-eye-slash" );
+                $('#show_hide_login_password i').removeClass( "fa-eye" );
+            }else if($('#show_hide_login_password input').attr("type") == "password"){
+                $('#show_hide_login_password input').attr('type', 'text');
+                $('#show_hide_login_password i').removeClass( "fa-eye-slash" );
+                $('#show_hide_login_password i').addClass( "fa-eye" );
+            }
+        });
+
+        $("#show_hide_change_password_api_key").on('click', function(event) {
+            event.preventDefault();
+            if($('#show_hide_change_password_api_key input').attr("type") == "text"){
+                $('#show_hide_change_password_api_key input').attr('type', 'password');
+                $('#show_hide_change_password_api_key i').addClass( "fa-eye-slash" );
+                $('#show_hide_change_password_api_key i').removeClass( "fa-eye" );
+            }else if($('#show_hide_change_password_api_key input').attr("type") == "password"){
+                $('#show_hide_change_password_api_key input').attr('type', 'text');
+                $('#show_hide_change_password_api_key i').removeClass( "fa-eye-slash" );
+                $('#show_hide_change_password_api_key i').addClass( "fa-eye" );
             }
         });
     });
