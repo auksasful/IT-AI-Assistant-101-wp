@@ -155,5 +155,7 @@
         'edit' => 'Edit',
         'api_key_only_teacher' => 'API key (restoring password this way is only for teachers)',
         'use_document_information' => 'Use document information',
+        'cosine_similarity' => 'Cosine similarity ',
+        'faq' => 'F.A.Q.',
 	);
 ?>

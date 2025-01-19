@@ -157,6 +157,8 @@
         'export_tasks' => 'Eksportuoti užduotis',
         'export' => 'Eksportuoti',
         'use_document_information' => 'Naudoti dokumento informaciją',
+        'cosine_similarity' => 'Kosinusinis panašumas (Cosine similarity) ',
+        'faq' => 'D.U.K.',
 
     );
 ?>

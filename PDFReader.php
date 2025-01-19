@@ -615,7 +615,85 @@ class PdfReader
             $responseData = json_decode($response->getBody()->getContents(), true);            
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 // Return only the text part
-                return $this->analyzeOrangeQuestion($api_key, '', '', $responseData['candidates'][0]['content']['parts'][0]['text']);
+                $message = $responseData['candidates'][0]['content']['parts'][0]['text'];
+                echo $message;
+                return $this->analyzeUrlEmbeddingsQuestion($api_key, '', '', $message, "Orange", true);
+            } else {
+                throw new Exception("Text content not found in the response");
+            }
+        } catch (RequestException $e) {
+            throw $e;
+        } catch (Exception $e) {
+            throw $e;
+        }
+    }
+
+    public function analyzeOrangeQuestion($api_key, $message)
+    {
+        global $prompts;
+
+        $taskManager = new TaskManager();
+        $chatHistory = $taskManager->get_student_task_chat_history($this->task_id, $this->class_id, $this->user_username);
+
+        $chatHistoryArray = [];
+        foreach ($chatHistory as $chat) {
+            $chatHistoryArray[] = [
+                'role' => $chat->message_role,
+                'parts' => [
+                    [
+                        'text' => $chat->user_message,
+                    ],
+                ],
+            ];
+        }
+
+        $chatHistoryArray[] = [
+            'role' => 'user',
+            'parts' => [
+                [
+                    'text' => $message,
+                ],
+            ],
+        ];
+
+        $system_prompt = $prompts['analyze_orange_question_prompt'];
+
+        $client = new Client();
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $jsonData = [
+            'systemInstruction' => [
+                'parts' => [
+                    [
+                        'text' => $system_prompt
+                    ],
+                ],
+            ],
+            'contents' => [
+                $chatHistoryArray
+            ],
+            'generationConfig' => [
+                'temperature' => 1,
+                'topK' => 64,
+                'topP' => 0.95,
+                'maxOutputTokens' => 8192,
+                'responseMimeType' => 'text/plain',
+            ],
+        ];
+    
+        try {
+            $response = $client->post($url, [
+                'headers' => ['Content-Type' => 'application/json'],
+                'json' => $jsonData,
+            ]);
+    
+            $responseData = json_decode($response->getBody()->getContents(), true);            
+            if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
+                // Return only the text part
+                $text = $responseData['candidates'][0]['content']['parts'][0]['text'];
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $text);
+
+                return $text;
             } else {
                 throw new Exception("Text content not found in the response");
             }
@@ -627,19 +705,35 @@ class PdfReader
     }
 
 
-    public function analyzeOrangeQuestion($api_key, $data_file_path='', $wanted_result, $message)
+    public function analyzeUrlEmbeddingsQuestion($api_key, $data_file_path='', $wanted_result, $message, $task_type="Orange", $hasQuestion=false)
     {
         global $prompts;
+        global $lang;
         $taskManager = new TaskManager();
 
         $docsUrls = null;
-        $docsUrlsFilePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/docs_urls.json';
+        if ($task_type == "Orange") {
+            $docsUrlsFilePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/orange_docs_urls.json';
+            $embeddingsFilePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/orange_embeddings.json';
+        }
+        elseif ($task_type == "Python") {
+            $docsUrlsFilePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/python_docs_urls.json';
+            $embeddingsFilePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/python_embeddings.json';
+        }
+        elseif ($task_type == "Excel") {
+            $docsUrlsFilePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/excel_docs_urls.json';
+            $embeddingsFilePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/excel_embeddings.json';
+        }
+        else {
+            $docsUrlsFilePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/docs_urls.json';
+            $embeddingsFilePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/embeddings.json';
+        }
+
         if (file_exists($docsUrlsFilePath)) { 
-            echo "Loading URLs from $docsUrlsFilePath\n";
+            // echo "Loading URLs from $docsUrlsFilePath\n";
             $docsUrls = json_decode(file_get_contents($docsUrlsFilePath), true); 
         }
         $embeddings = null;
-        $embeddingsFilePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/embeddings.json';
         // if (file_exists($embeddingsFilePath)) { 
         //     echo "Loading URLs from $embeddingsFilePath\n";
         //     $embeddings = json_decode(file_get_contents($embeddingsFilePath), true); 
@@ -775,10 +869,14 @@ class PdfReader
                 // Print the top 5 URLs with their similarity scores and text snippets
                 $text_content_to_ask = "";
                 $url_texts = "";
-                echo "Top 5 most similar URLs:\n";
+                $urls = [];
+                $similarities = [];
+                // echo "Top 5 most similar URLs:\n";
                 foreach ($top_indices as $idx) {
                     $url = $urls_with_embeddings[$idx];
                     $similarity = $cosine_similarities[$idx];
+                    $urls[] = $url;
+                    $similarities[] = $similarity;
                     $text_content = $texts[$idx];  // Retrieve the corresponding text content
                     $text_content_to_ask .= $text_content . "\n";
                     
@@ -790,8 +888,8 @@ class PdfReader
                     $url_texts .= $plain_text . "\n";
 
                     // Print the URL and similarity score
-                    echo "URL: {$url}\n";
-                    echo "Similarity: " . number_format($similarity, 4) . "\n";
+                    // echo "URL: {$url}\n";
+                    // echo "Similarity: " . number_format($similarity, 4) . "\n";
                 }
                 
                 $tempFilePath = tempnam(sys_get_temp_dir(), 'url_texts_');
@@ -799,9 +897,22 @@ class PdfReader
 
                 $tempFileUri = $this->uploadFileNew($api_key, $tempFilePath, 'url_texts_.txt', 'text/plain')[0];
                 $system_prompt = "You must answer the question using the text and some general knowledge. Do not mention where you got the answer. Speak in Lithuanian!";
-                $answer = $this->analyzeTxt($api_key, $tempFileUri, $english_prompt , $system_prompt);
+                if ($hasQuestion) {
+                    $answer = $this->analyzeTxt($api_key, $tempFileUri, $english_prompt , $system_prompt);
+                } else {
+                    $answer = $message;
+                }
                 $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
                 $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $answer);
+                echo $answer;
+
+                for($i = 0; $i < count($urls); $i++) {
+
+                    // Print the URL and similarity score
+                    echo "\n" . $urls[$i] . " " . $lang['cosine_similarity'] . " " . number_format($similarities[$i], 4);
+                    // echo $lang['cosine_similarity'] . " " . number_format($similarities[$i], 4) . " ";
+                }
+
                 return $answer;
 
 

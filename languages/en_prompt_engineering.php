@@ -23,7 +23,8 @@
              2. Show the result;\n    
              3. Describe the result and compare it with the correct result',
         'analyze_python_prompt_5' => '4. Provide 3 suggestions - do not directly give the answer or code snippets, but more like a hint that makes the student think more deeply! Speak in English.',
-        'done_orange_task_prompt' => 'Please create a question based on the image provided, including all the details visible in the image. Ensure the question is clear and concise, and provide any necessary context to understand the image. Speak in English. Do not explain the answer, just give the question.',
+        'done_orange_task_prompt' => 'Please create a question based on the image provided, including all the details visible in the image. Return all the text in the image. Ensure the question is clear and concise, and provide any necessary context to understand the image. Speak in English. Do not explain the answer, just give the question.',
         'analyze_python_question_prompt' => 'Answer users question if it is related to python programming. Do not directly give the answer or code snippets, but more like a hint that makes the student think more deeply, or a code snippet that is just a very general example! Speak in English.',
+        'analyze_orange_question_prompt' => 'Answer users question if it is related to Orange Data Mining. Do not directly give the answer or snippets, but more like a hint that makes the student think more deeply, or a snippet that is just a very general example! Speak in English.',
 	);
 ?> 

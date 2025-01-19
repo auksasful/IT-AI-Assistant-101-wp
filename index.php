@@ -778,7 +778,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($task->task_type == 'Orange') {
                 $solution_file_mime_type = $result[2];
                 $prompt = $prompts['done_orange_task_prompt'];
-                echo $pdfReader->analyzeOrange($API_KEY, $solution_file_uri, $solution_file_mime_type, $prompt);
+                $pdfReader->analyzeOrange($API_KEY, $solution_file_uri, $solution_file_mime_type, $prompt);
                 return "Your uploaded solution: {$solution_file}";
             }
         }
@@ -870,17 +870,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $response = $pdfReader->analyzeExcelQuestion($API_KEY, $fileUri1, $fileUri2, $input);
-                    echo $response;
+                    $response = $pdfReader->analyzeUrlEmbeddingsQuestion($API_KEY, '', '', $response, "Excel", false);
+
+                    // echo $response;
                 }
                 elseif($current_task->task_type == 'Python') {
                     $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
                     $response = $pdfReader->analyzePythonQuestion($API_KEY, $input);
-                    echo $response;
+                    $response = $pdfReader->analyzeUrlEmbeddingsQuestion($API_KEY, '', '', $response, "Python", false);
+                    // echo $response;
                 }
                 elseif($current_task->task_type == 'Orange') {
                     $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
-                    $response = $pdfReader->analyzeOrangeQuestion($API_KEY, $current_task->orange_data_file_uri, $current_task->orange_program_execution_result, $input);
-                    echo $response;
+                    $response = $pdfReader->analyzeOrangeQuestion($API_KEY, $input);
+                    $response = $pdfReader->analyzeUrlEmbeddingsQuestion($API_KEY, $current_task->orange_data_file_uri, $current_task->orange_program_execution_result, $response, "Orange", false);
+                    return $response;
                 }
                 else {
                     $response = processChatInput($input);
@@ -1043,6 +1047,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .form-switch {
             padding-left: 3em;
         }
+        .message-bubble > * {
+            padding-left: 0.5em;
+        }
+        #bottom-task-info {
+            position: sticky;
+            bottom: 0;
+            background-color: #F9FBD3;
+            padding: 10px;
+            border-top: 1px solid #dee2e6;
+            margin-top: auto;
+            width: 100%;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            z-index: 1000;
+            text-align: left;
+            transition: background-color 0.3s ease;
+        }
+
+        #bottom-task-info:hover {
+            background-color:rgb(220, 255, 164);
+        }
+
     </style>
 </head>
 <body>
@@ -1053,6 +1078,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <button class="button is-primary" onclick="addTask()"><?php echo $lang['add_task']; ?></button>
             </div>
             <div class="task-list"></div>
+            <a id="bottom-task-info" href="<?php echo home_url('/itaiassistant101/faq'); ?>">
+                <?php echo $lang['faq']; ?>
+            </a>
             <div class="bottom-left-buttons">
             <div class="settings-menu">
                 <button class="button is-primary" onclick="openSettingsModal()"><?php echo $lang['settings']; ?></button>
@@ -1392,9 +1420,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Convert URLs in the text to clickable links
             const urlRegex = /(https?:\/\/[^\s]+)/g;
-            const urlText = '<?php echo $lang['click_url']; ?>';
             const html = marked(text.replace(urlRegex, function(url) {
-                return `<a href="${url}" target="_blank" class="btn btn-primary">${urlText}</a><br>`;
+                const domain = url.replace(/^(?:https?:\/\/)?(?:www\.)?([^\/]+).*$/, '$1');
+                return `<a href="${url}" target="_blank" class="btn btn-secondary  btn-sm">${domain}</a><br>`;
             }));
 
             messageBubble.innerHTML = html;
