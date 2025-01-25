@@ -29,7 +29,7 @@
         'uploaded_python_data_file' => 'Įkeltas Python duomenų failas',
         'uploaded_orange_data_file' => 'Įkeltas Orange duomenų failas',
         'upload_python_data_file_for_checking' => 'Įkelti Python duomenų failą pasitikrinimui (.txt, neprivaloma)',
-        'upload_orange_data_file_for_checking' => 'Įkelti Orange duomenų failą pasitikrinimui (.tab,.tsv,.tab.gz,.tsv.gz,.gz,.tab.bz2,.tsv.bz2,.bz2,.tab.xz,.tsv.xz,.xz,.csv,.csv.gz,.csv.bz2,.basket,.bsk,.xls,.xlsx,.pkl,.pickle,.pkl.gz,.pickle.gz,.pkl.bz2,.pickle.bz2,.pkl.xz,.pickle.xz, neprivaloma)',
+        'upload_orange_data_file_for_checking' => 'Įkelti Orange duomenų failą pasitikrinimui',
         'correct_program_execution_result' => 'Teisingo programos vykdymo rezultatas',
         'enter_correct_program_execution_result' => 'Įveskite teisingo programos vykdymo rezultatą',
         'task_description' => 'Užduoties aprašymas',
@@ -159,6 +159,7 @@
         'use_document_information' => 'Naudoti dokumento informaciją',
         'cosine_similarity' => 'Kosinusinis panašumas (Cosine similarity) ',
         'faq' => 'D.U.K.',
+        'back_to_index' => 'Grįžti į pradinį puslapį',
 
     );
 ?>

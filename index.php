@@ -748,7 +748,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $solution_file_uri = $result[1];
             $taskManager->insert_student_task_solution($task_id, $class_id, $user_username, $solution_file, $solution_file_uri);
             $pdfReader = new PdfReader($task_id, $class_id, $username);
-            $correct_solution_uri = $task->task_file_correct;
+            $correct_solution_uri = $task->clean_task_file_uri;
             if ($task->task_type == 'Excel') {
                 // TODO fix old file uri problem in other file types as well
                 $prompt = $prompts['done_excel_task_prompt'];
@@ -761,7 +761,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // move excel_data to text file with the same name to the same path but the extension is .txt
                     $textFilePath = str_replace($fileExtension, 'txt', $filePath);
                     $correct_solution_uri = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain')[0];
-                    $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $current_task->task_file_uri, $fileUri2, $current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
+                    $taskManager->update_task($current_task->task_id, $current_task->task_name, $current_task->task_text, $current_task->task_type, $current_task->task_file_clean, $current_task->task_file_correct, $current_task->task_file_uri, $correct_solution_uri, $current_task->system_prompt, $current_task->default_summary, $current_task->default_self_check_questions);
                 }
                 echo $pdfReader->analyzeExcel($API_KEY, $solution_file_uri, $correct_solution_uri, $prompt);
                 return "Your uploaded solution: {$solution_file}";

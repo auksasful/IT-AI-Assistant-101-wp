@@ -31,7 +31,7 @@
         'uploaded_python_data_file' => 'Uploaded Python data file',
         'uploaded_orange_data_file' => 'Uploaded Orange data file',
         'upload_python_data_file_for_checking' => 'Upload Python data file for checking (.txt, optional)',
-        'upload_orange_data_file_for_checking' => 'Upload Orange data file for checking (.tab,.tsv,.tab.gz,.tsv.gz,.gz,.tab.bz2,.tsv.bz2,.bz2,.tab.xz,.tsv.xz,.xz,.csv,.csv.gz,.csv.bz2,.basket,.bsk,.xls,.xlsx,.pkl,.pickle,.pkl.gz,.pickle.gz,.pkl.bz2,.pickle.bz2,.pkl.xz,.pickle.xz, optional)',
+        'upload_orange_data_file_for_checking' => 'Upload Orange data file for checking',
         'correct_program_execution_result' => 'Correct program execution result',
         'enter_correct_program_execution_result' => 'Enter correct program execution result',
         'task_description' => 'Task Description',
@@ -157,5 +157,6 @@
         'use_document_information' => 'Use document information',
         'cosine_similarity' => 'Cosine similarity ',
         'faq' => 'F.A.Q.',
+        'back_to_index' => 'Back to index',
 	);
 ?>
