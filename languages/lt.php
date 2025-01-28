@@ -160,6 +160,18 @@
         'cosine_similarity' => 'Kosinusinis panašumas (Cosine similarity) ',
         'faq' => 'D.U.K.',
         'back_to_index' => 'Grįžti į pradinį puslapį',
-
+        'upload' => 'Įkelti',
+        'remove_file' => 'Panaikinti failą',
+        'confirm_remove_file' => 'Ar tikrai norite panaikinti failą?',
+        'file_removed' => 'Failas panaikintas',
+        'error_removing_file' => 'Klaida panaikinant failą',
+        'delete_task_confirmation_header' => 'Užduoties panaikinimo patvirtinimas',
+        'delete_task_confirmation' => 'Ar tikrai norite panaikinti užduotį?',
+        'enter_new_question_text' => 'Įveskite naują klausimo tekstą',
+        'enter_new_answer_text' => 'Įveskite naują atsakymo tekstą',
+        'add_question' => 'Pridėti klausimą',
+        'enter_question' => 'Įveskite klausimą',
+        'enter_answer' => 'Įveskite atsakymą',
+        'confirm_delete_question' => 'Ar tikrai norite ištrinti šį klausimą?',
     );
 ?>

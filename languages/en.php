@@ -158,5 +158,18 @@
         'cosine_similarity' => 'Cosine similarity ',
         'faq' => 'F.A.Q.',
         'back_to_index' => 'Back to index',
+        'upload' => 'Upload',
+        'remove_file' => 'Remove file',
+        'confirm_remove_file' => 'Are you sure you want to remove the file?',
+        'file_removed' => 'File removed',
+        'error_removing_file' => 'Error removing file',
+        'delete_task_confirmation_header' => 'Task Deletion Confirmation',
+        'delete_task_confirmation' => 'Are you sure you want to delete the task?',
+        'enter_new_question_text' => 'Enter new question text',
+        'enter_new_answer_text' => 'Enter new answer text',
+        'add_question' => 'Add question',
+        'enter_question' => 'Enter question',
+        'enter_answer' => 'Enter answer',
+        'confirm_delete_question' => 'Are you sure you want to delete this question?',
 	);
 ?>

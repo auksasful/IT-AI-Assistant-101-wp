@@ -69,7 +69,26 @@ class TaskManager {
         }
     }
 
-    public function update_task($task_id, $task_name, $task_text, $task_type, $task_file_clean = null, $task_file_correct = null, $task_file_uri = null, $clean_task_file_uri = null, $system_prompt = null, $default_summary = null, $default_self_check_questions = null) {
+    public function update_task(
+        $task_id,
+        $task_name,
+        $task_text,
+        $task_type,
+        $class_id,
+        $task_file_clean = null,
+        $task_file_correct = null,
+        $python_data_file = null,
+        $orange_data_file = null,
+        $task_file_uri = null,
+        $clean_task_file_uri = null,
+        $python_data_file_uri = null,
+        $orange_data_file_uri = null,
+        $python_program_execution_result = null,
+        $orange_program_execution_result = null,
+        $system_prompt = null,
+        $default_summary = null,
+        $default_self_check_questions = null
+    ) {
         $table_name = $this->db->prefix . 'it_ai_assistant101_task';
         $this->db->update(
             $table_name,
@@ -77,24 +96,41 @@ class TaskManager {
                 'task_name' => $task_name,
                 'task_text' => $task_text,
                 'task_type' => $task_type,
+                'class_id' => $class_id,
                 'task_file_clean' => $task_file_clean,
                 'task_file_correct' => $task_file_correct,
+                'python_data_file' => $python_data_file,
+                'orange_data_file' => $orange_data_file,
                 'task_file_uri' => $task_file_uri,
-                '$clean_task_file_uri' => $clean_task_file_uri,
+                'clean_task_file_uri' => $clean_task_file_uri,
+                'python_data_file_uri' => $python_data_file_uri,
+                'orange_data_file_uri' => $orange_data_file_uri,
+                'python_program_execution_result' => $python_program_execution_result,
+                'orange_program_execution_result' => $orange_program_execution_result,
                 'system_prompt' => $system_prompt,
                 'default_summary' => $default_summary,
                 'default_self_check_questions' => $default_self_check_questions
             ),
             array('task_id' => $task_id)
         );
+        error_log("Task updated in the database: " . $task_id);
     }
 
-    public function delete_task($task_id) {
+    public function delete_task($task_id, $user_username, $class_id) {
         $table_name = $this->db->prefix . 'it_ai_assistant101_task';
-        $this->db->delete(
-            $table_name,
-            array('task_id' => $task_id)
-        );
+        $class_table_name = $this->db->prefix . 'it_ai_assistant101_class';
+        #check if the user is class_main_teacher
+        $sql = "SELECT class_main_teacher FROM $class_table_name WHERE class_id = %d";
+        $class_main_teacher = $this->db->get_var($this->db->prepare($sql, $class_id));
+        if ($class_main_teacher == $user_username) {
+            $this->db->delete(
+                $table_name,
+                array('task_id' => $task_id)
+            );
+            return true;
+        }
+        return false;
+        
     }
 
     public function insert_student_task_solution($task_id, $class_id, $user_username, $solution_file = null, $solution_file_uri = null, $solution_file_mime_type = null) {

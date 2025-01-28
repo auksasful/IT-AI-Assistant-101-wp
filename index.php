@@ -568,6 +568,16 @@ function convert_path_to_url($full_path) {
     return $encoded_url;
 }
 
+function deleteFile($filePath) {
+    global $username;
+    if (strpos($filePath, $username) === false) {
+        return;
+    }
+    if (file_exists($filePath)) {
+        unlink($filePath);
+    }
+}
+
 
 // Main execution logic
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -600,6 +610,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 error_log('default_self_check_questions in PHP: ' . $default_self_check_questions); 
                 // Call the saveTask function with the data 
                 echo json_encode(saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $python_data_file, $orange_data_file, $file_uri, $correct_file_uri, $python_data_file_uri, $orange_data_file_uri, $python_program_execution_result, $orange_program_execution_result, $system_prompt, $default_summary, $default_self_check_questions));
+            }
+            elseif($input === 'task-update') { 
+                $name = $data['name']; 
+                $text = $data['text']; 
+                $type = $data['type']; 
+                $class_id = $data['class_id']; 
+                $file_clean = $data['file_clean']; 
+                $file_correct = $data['file_correct']; 
+                $python_data_file = $data['python_data_file'];
+                $orange_data_file = $data['orange_data_file'];
+                $file_uri = $data['file_uri'];
+                $correct_file_uri = $data['correct_file_uri'];
+                $python_data_file_uri = $data['python_data_file_uri'];
+                $orange_data_file_uri = $data['orange_data_file_uri'];
+                $python_program_execution_result = $data['python_program_execution_result'];    
+                $orange_program_execution_result = $data['orange_program_execution_result'];
+                $system_prompt = 'You are a helpful and informative bot that answers questions in Lithuanian language using text from the file.'; 
+                $default_summary = $data['default_summary']; 
+                $default_self_check_questions = $data['default_self_check_questions']; 
+                $class_id = $data['class_id']; 
+                $task_id = $data['task_id'];
+                $task_file_changed = $data['task_file_changed'];
+                $correct_task_file_changed = $data['correct_task_file_changed'];
+                $python_data_file_changed = $data['python_data_file_changed'];
+                $orange_data_file_changed = $data['orange_data_file_changed'];
+    
+                // just error_log all the data
+                error_log('LOGGING ALL DATA FOR EDITING!!!!');
+                error_log('name: ' . $name);
+                error_log('text: ' . $text);
+                error_log('type: ' . $type);
+                error_log('class_id: ' . $class_id);
+                error_log('file_clean: ' . $file_clean);
+                error_log('file_correct: ' . $file_correct);
+                error_log('python_data_file: ' . $python_data_file);
+                error_log('orange_data_file: ' . $orange_data_file);
+                error_log('file_uri: ' . $file_uri);
+                error_log('correct_file_uri: ' . $correct_file_uri);
+                error_log('python_data_file_uri: ' . $python_data_file_uri);
+                error_log('orange_data_file_uri: ' . $orange_data_file_uri);
+                error_log('python_program_execution_result: ' . $python_program_execution_result);
+                error_log('orange_program_execution_result: ' . $orange_program_execution_result);
+                error_log('system_prompt: ' . $system_prompt);
+                error_log('default_summary: ' . $default_summary);
+                error_log('default_self_check_questions: ' . $default_self_check_questions);
+                error_log('class_id: ' . $class_id);
+                error_log('task_file_changed: ' . $task_file_changed);
+                error_log('correct_task_file_changed: ' . $correct_task_file_changed);
+                error_log('python_data_file_changed: ' . $python_data_file_changed);
+                error_log('orange_data_file_changed: ' . $orange_data_file_changed);
+
+                $task = $taskManager->get_task($task_id, $username);
+                if ($task_file_changed != 1) {
+                    $file_uri = $task->task_file_uri;
+                    $file_clean = $task->task_file_clean;
+                }
+                if ($correct_task_file_changed  != 1) {
+                    $correct_file_uri = $task->clean_task_file_uri;
+                    $file_correct = $task->task_file_correct;
+                }
+                if ($python_data_file_changed  != 1) {
+                    $python_data_file_uri = $task->python_data_file_uri;
+                    $python_data_file = $task->python_data_file;
+                }
+                if ($orange_data_file_changed  != 1) {
+                    $orange_data_file_uri = $task->orange_data_file_uri;
+                    $orange_data_file = $task->orange_data_file;
+                }
+
+                error_log('file_uri: ' . $file_uri);
+                error_log('file_clean: ' . $file_clean);
+
+                $taskManager->update_task(
+                    $task_id,
+                    $name,
+                    $text,
+                    $type,
+                    $class_id,
+                    $file_clean,
+                    $file_correct,
+                    $python_data_file,
+                    $orange_data_file,
+                    $file_uri,
+                    $correct_file_uri,
+                    $python_data_file_uri,
+                    $orange_data_file_uri,
+                    $python_program_execution_result,
+                    $orange_program_execution_result,
+                    $system_prompt,
+                    $default_summary,
+                    $default_self_check_questions
+                );
             }
         }
 
@@ -668,7 +770,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
             // Call the saveTask function with the data
             saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $python_data_file, $file_uri, $correct_file_uri, $python_data_file_uri, $python_program_execution_result, $system_prompt, $default_summary, $default_self_check_questions);
-        }        
+        }
+        elseif($input === 'task-update') { 
+            $name = $data['name']; 
+            $text = $data['text']; 
+            $type = $data['type']; 
+            $class_id = $data['class_id']; 
+            $file_clean = $data['file_clean']; 
+            $file_correct = $data['file_correct']; 
+            $python_data_file = $data['python_data_file'];
+            $orange_data_file = $data['orange_data_file'];
+            $file_uri = $data['file_uri'];
+            $correct_file_uri = $data['correct_file_uri'];
+            $python_data_file_uri = $data['python_data_file_uri'];
+            $orange_data_file_uri = $data['orange_data_file_uri'];
+            $python_program_execution_result = $data['python_program_execution_result'];    
+            $orange_program_execution_result = $data['orange_program_execution_result'];
+            $system_prompt = 'You are a helpful and informative bot that answers questions in Lithuanian language using text from the file.'; 
+            $default_summary = $data['default_summary']; 
+            $default_self_check_questions = $data['default_self_check_questions']; 
+            $class_id = $data['class_id']; 
+            $task_id = $data['task_id'];
+
+            // just error_log all the data
+            error_log('LOGGING ALL DATA FOR EDITING!!!!');
+            error_log('name: ' . $name);
+            error_log('text: ' . $text);
+            error_log('type: ' . $type);
+            error_log('class_id: ' . $class_id);
+            error_log('file_clean: ' . $file_clean);
+            error_log('file_correct: ' . $file_correct);
+            error_log('python_data_file: ' . $python_data_file);
+            error_log('orange_data_file: ' . $orange_data_file);
+            error_log('file_uri: ' . $file_uri);
+            error_log('correct_file_uri: ' . $correct_file_uri);
+            error_log('python_data_file_uri: ' . $python_data_file_uri);
+            error_log('orange_data_file_uri: ' . $orange_data_file_uri);
+            error_log('python_program_execution_result: ' . $python_program_execution_result);
+            error_log('orange_program_execution_result: ' . $orange_program_execution_result);
+            error_log('system_prompt: ' . $system_prompt);
+            error_log('default_summary: ' . $default_summary);
+            error_log('default_self_check_questions: ' . $default_self_check_questions);
+            error_log('class_id: ' . $class_id);
+
+            $taskManager->update_task(
+                $task_id,
+                $name,
+                $text,
+                $type,
+                $class_id,
+                $file_clean,
+                $file_correct,
+                null,
+                null,
+                $file_uri,
+                $correct_file_uri,
+                null,
+                null,
+                null,
+                null,
+                $system_prompt,
+                $default_summary,
+                $default_self_check_questions
+            );
+        }
+        elseif($input === 'remove-task-file') {
+            $fileName = $_POST['file-name'];
+            $filePath = WP_CONTENT_DIR . "/ITAIAssistant101/" . $username . "/TASK/" . $fileName;
+            deleteFile($filePath);
+        }
+        elseif($input === 'delete-task') {
+            $taskId = $_POST['task-id'];
+            $classId = $_POST['class-id'];
+            $the_task = $taskManager->get_task($taskId, $username);
+            deleteFile($the_task->task_file_clean);
+            deleteFile($the_task->task_file_correct);
+            deleteFile($the_task->python_data_file);
+            deleteFile($the_task->orange_data_file);
+            return $taskManager->delete_task($taskId, $username, $classId);
+        }
         elseif($input === 'task-list') {
             $class_id = $_POST['class_id'];
             $tasks = getTasksByClassId($class_id);
@@ -1068,6 +1248,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background-color:rgb(220, 255, 164);
         }
 
+        .custom-file-label::after { content: "<?php echo $lang['upload']; ?>";}
+
+        .remove-file-button {
+            padding-top: 0.4em;
+            display: none;
+        }
+
     </style>
 </head>
 <body>
@@ -1156,6 +1343,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="control">
                         <input type="file" class="custom-file-input" id="taskFile" accept=".pdf,.xls,.xlsx" onchange="validateFileType()">
                         <label class="custom-file-label" for="taskFile"><?php echo $lang['upload_file_for_task']; ?></label>
+                        <button class="button is-danger is-small remove-file-button" id="removeTaskFileButton" onclick="removeTaskFile('regular')"><?php echo $lang['remove_file']; ?></button>
                     </div>
                 </div>
                 <div class="excel-field">
@@ -1164,6 +1352,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="control">
                             <input type="file" class="custom-file-input" id="correctTaskFile" accept=".pdf,.xls,.xlsx" onchange="validateCorrectFileType()">
                             <label class="custom-file-label" for="correctTaskFile"><?php echo $lang['upload_correct_solution_file_for_task']; ?></label>
+                            <button class="button is-danger is-small remove-file-button" id="removeCorrectTaskFileButton" onclick="removeTaskFile('correct-excel')"><?php echo $lang['remove_file']; ?></button>
                         </div>
                     </div>
                 </div>
@@ -1173,6 +1362,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="control">
                             <input type="file" class="custom-file-input" id="correctPythonDataFile" accept=".txt,.csv" onchange="validatePythonDataFileType()">
                             <label class="custom-file-label" for="correctPythonDataFile"><?php echo $lang['upload_python_data_file_for_checking']; ?></label>
+                            <button class="button is-danger is-small remove-file-button" id="removePythonDataFileButton" onclick="removeTaskFile('data-python')"><?php echo $lang['remove_file']; ?></button>
                         </div>
                     </div>
                     <div class="field">
@@ -1189,7 +1379,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="file" class="custom-file-input" id="correctOrangeDataFile" accept=".tab,.tsv,.tab.gz,.tsv.gz,.gz,.tab.bz2,.tsv.bz2,.bz2,.tab.xz,.tsv.xz,.xz,.csv,.csv.gz,.csv.bz2,.basket,.bsk,.xls,.xlsx,.pkl,.pickle,.pkl.gz,.pickle.gz,.pkl.bz2,.pickle.bz2,.pkl.xz,.pickle.xz" onchange="validateOrangeDataFileType()">
                             <label class="custom-file-label" for="correctOrangeDataFile" title="<?php echo $lang['upload_orange_data_file_for_checking']; ?>"> 
                                 <?php echo $lang['upload_orange_data_file_for_checking']; ?> 
-                            </label>                        
+                            </label>
+                            <button class="button is-danger is-small remove-file-button" id="removeOrangeDataFileButton" onclick="removeTaskFile('data-orange')"><?php echo $lang['remove_file']; ?></button>                        
                         </div>
                     </div>
                     <div class="field">
@@ -1217,6 +1408,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p><strong><?php echo $lang['uploaded_python_data_file']; ?>:</strong> <span id="displayTaskPythonDataFile"></span></p>
                     <p><strong><?php echo $lang['correct_program_execution_result']; ?>:</strong> <span id="displayTaskPythonProgramExecutionResult"></span></p>
                 </div>
+                <div class="orange-field">
+                    <p><strong><?php echo $lang['uploaded_orange_data_file']; ?>:</strong> <span id="displayTaskOrangeDataFile"></span></p>
+                    <p><strong><?php echo $lang['correct_program_execution_result']; ?>:</strong> <span id="displayTaskOrangeProgramExecutionResult"></span></p>
+                </div>
                 <p><strong><?php echo $lang['task_description']; ?>:</strong> <span id="displayTaskDescription"></span></p>
             </div>
             <div id="step3" style="display: none;">
@@ -1232,7 +1427,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="label"><?php echo $lang['task_self_check_questions']; ?></label>
                         <button class="button" onclick="writeTaskQuestions()"><?php echo $lang['write_questions_with_ai']; ?></button>
                         <div class="control">
-                            <textarea class="textarea" id="taskQuestions" placeholder="<?php echo $lang['enter_task_self_check_questions']; ?>"></textarea>
+                            <textarea class="textarea" id="taskQuestions" style="display:none" placeholder="<?php echo $lang['enter_task_self_check_questions']; ?>"></textarea>
                         </div>
                     </div>
                 </div>
@@ -1410,6 +1605,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         let currentPythonDataFileUri = '';
 
         let currentOrangeDataFilePath = '';
+        let currentOrangeDataFileUri = '';
+        let fetchedTasks = null;
+        let tasksModalState = 'Add';
+        let editedTaskID = 0;
+
+        let taskFileChanged = false;
+        let correctTaskFileChanged = false;
+        let pythonDataFileChanged = false;
+        let orangeDataFileChanged = false;
 
         function displayMessage(text, sender) {
             console.log(text, sender);
@@ -1695,6 +1899,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 result = JSON.parse(result);
                 currentTaskFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
                 currentTaskFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
+                const displayFileName = currentTaskFilePath.split('/').pop();
+                document.getElementById('taskFile').nextElementSibling.innerText = displayFileName;
                 hideLoadingModal();
                 bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
 
@@ -1732,7 +1938,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (messageBubbles.length > 0) {
                     clearInterval(interval);
                     const elementToAddAfter = messageBubbles[messageBubbles.length - 1].children[messageBubbles[messageBubbles.length - 1].children.length - 1];
-                    createSelfCheckAccordion(questions, elementToAddAfter);
+                    createSelfCheckAccordion(questions, elementToAddAfter, true);
                     <?php loadChatHistory(); ?>
                 }
             }, 100); // Check every 0.1 seconds
@@ -1767,6 +1973,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 result = JSON.parse(result);
                 currentCorrectTaskFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
                 currentCorrectTaskFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
+                const displayFileName = currentCorrectTaskFilePath.split('/').pop();
+                document.getElementById('correctTaskFile').nextElementSibling.innerText = displayFileName;
                 hideLoadingModal();
                 bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
 
@@ -1811,6 +2019,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 result = JSON.parse(result);
                 currentPythonDataFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
                 currentPythonDataFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
+                const displayFileName = currentPythonDataFilePath.split('/').pop();
+                document.getElementById('correctPythonDataFile').nextElementSibling.innerText = displayFileName;
 
                 hideLoadingModal();
                 bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
@@ -1854,8 +2064,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .then(result => {
                 result = JSON.parse(result);
                 currentOrangeDataFilePath = result[0].replace(/(\r\n|\n|\r)/gm, "");
-                // currentPythonDataFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
-
+                currentOrangeDataFileUri = result[1].replace(/(\r\n|\n|\r)/gm, "");
+                const displayFileName = currentOrangeDataFilePath.split('/').pop();
+                document.getElementById('correctOrangeDataFile').nextElementSibling.innerText = displayFileName;
                 hideLoadingModal();
                 bootbox.alert("<?php echo $lang['file_uploaded_successfully']; ?>");
 
@@ -1982,6 +2193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             })
             .then(response => response.json())
             .then(tasks => {
+                fetchedTasks = tasks;
                 const taskList = document.querySelector('.task-list');
                 // taskList.innerHTML = '';
                 tasks.forEach(task => {
@@ -2297,7 +2509,218 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
         function addTask() {
+            taskState = 'Add';
+            cleanTasksCRUDFields();
+            toggleTaskTypeFields();
             document.getElementById('addTaskModal').classList.add('is-active');
+        }
+
+        function cleanTasksCRUDFields()
+        {
+            document.getElementById('taskName').value = '';
+            document.getElementById('taskType').value = 'PDF';
+            document.getElementById('taskFile').value = '';
+            document.getElementById('taskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
+            document.getElementById('correctTaskFile').value = '';
+            document.getElementById('correctTaskFile').nextElementSibling.innerText = '<?php echo $lang['upload_correct_solution_file_for_task']; ?>';
+            document.getElementById('correctPythonDataFile').value = '';
+            document.getElementById('correctPythonDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_python_data_file_for_checking']; ?>';
+            document.getElementById('correctPythonProgramExecutionResult').value = '';
+            document.getElementById('correctOrangeDataFile').value = '';
+            document.getElementById('correctOrangeDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_orange_data_file_for_checking']; ?>';
+            document.getElementById('correctOrangeProgramExecutionResult').value = '';
+            document.getElementById('taskDescription').value = '';
+            document.getElementById('taskSummary').value = '';
+            document.getElementById('taskQuestions').value = '';
+        }
+
+        function editTask(taskId) {
+            // get from fetchedTasks by taskId
+            cleanTasksCRUDFields();
+            editedTaskID = taskId;
+            const task = fetchedTasks.find(task => task.task_id === taskId);
+            document.getElementById('taskName').value = task.task_name;
+            document.getElementById('taskType').value = task.task_type;
+            toggleTaskTypeFields();
+            // parse only the filename and extension from this:
+            // "/home/u513267982/domains/techtastetinker.com/public_html/wp-content/ITAIAssistant101/TeaTea/TASK/TeaTea_20250121234702_AML3_Preprocessing_and_unsupervised_classics.pdf"
+            let taskFileSplitted = '';
+            if (task.task_file_clean != '' && task.task_file_clean != null) {
+                taskFileSplitted = task.task_file_clean.split('/').pop();
+            }
+            console.log('!!!TASKFILE!!!!' + taskFileSplitted);
+            console.log('!!!TASKFILE CLEAN!!!!' + task.task_file_clean);
+            
+            if (taskFileSplitted == '') {
+                document.getElementById('taskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
+            } else {
+                document.getElementById('taskFile').nextElementSibling.innerText = taskFileSplitted;
+                document.getElementById('removeTaskFileButton').style.display = 'block';
+            }
+
+            if(task.task_type === 'PDF') {
+                const taskQuestionsElement = document.getElementById('taskQuestions');
+                const questions = JSON.parse(task.default_self_check_questions).questions;
+                createSelfCheckAccordion(questions, taskQuestionsElement);
+            }
+
+            if (task.task_type === 'Excel') {
+                let correctTaskFile = '';
+                if (task.task_file_correct != '' && task.task_file_correct != null) {
+                    correctTaskFile = task.task_file_correct.split('/').pop();
+                }
+                if (correctTaskFile === '') {
+                    document.getElementById('correctTaskFile').nextElementSibling.innerText = '<?php echo $lang['upload_correct_solution_file_for_task']; ?>';
+                } else {
+                    document.getElementById('correctTaskFile').nextElementSibling.innerText = correctTaskFile;
+                    document.getElementById('removeCorrectTaskFileButton').style.display = 'block';
+                }
+            }
+            if (task.task_type === 'Python') {
+                let correctPythonDataFile = '';
+                if (task.python_data_file != '' && task.python_data_file != null) {
+                    correctPythonDataFile = task.python_data_file.split('/').pop();
+                }
+                if (correctPythonDataFile === '') {
+                    document.getElementById('correctPythonDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_python_data_file_for_checking']; ?>';
+                } else {
+                    document.getElementById('correctPythonDataFile').nextElementSibling.innerText = correctPythonDataFile;
+                    document.getElementById('removePythonDataFileButton').style.display = 'block';
+                }
+            }
+            if (task.task_type === 'Orange') {
+                let correctOrangeDataFile = '';
+                if (task.orange_data_file != '' && task.orange_data_file != null) {
+                    correctOrangeDataFile = task.orange_data_file.split('/').pop();
+                }
+                if (correctOrangeDataFile === '') {
+                    document.getElementById('correctOrangeDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_orange_data_file_for_checking']; ?>';
+                } else {
+                    document.getElementById('correctOrangeDataFile').nextElementSibling.innerText = correctOrangeDataFile;
+                    document.getElementById('removeOrangeDataFileButton').style.display = 'block';
+                }
+            }
+            // const taskFileCorrect = task.task_file_correct.split('/').pop();
+            // document.getElementById('correctTaskFile').value.nextElementSibling.innerText = taskFileCorrect;
+            // const correctPythonDataFile = task.python_data_file.split('/').pop();
+            // document.getElementById('correctPythonDataFile').value.nextElementSibling.innerText = correctPythonDataFile;
+            const correctPythonProgramExecutionResult = task.python_program_execution_result;
+            document.getElementById('correctPythonProgramExecutionResult').value = correctPythonProgramExecutionResult;
+            // const correctOrangeDataFile = task.orange_data_file.split('/').pop();
+            // document.getElementById('correctOrangeDataFile').value.nextElementSibling.innerText = correctOrangeDataFile;
+            const correctOrangeProgramExecutionResult = task.orange_program_execution_result;
+            document.getElementById('correctOrangeProgramExecutionResult').value = correctOrangeProgramExecutionResult;
+            // task type
+            // description
+            document.getElementById('taskDescription').value = task.task_text;
+            document.getElementById('taskSummary').value = task.default_summary;
+            document.getElementById('taskQuestions').value = task.default_self_check_questions;
+            
+            taskState = 'Edit';
+
+            document.getElementById('addTaskModal').classList.add('is-active');
+        }
+
+        function deleteTask(taskId) {
+            bootbox.confirm({
+                title: "<?php echo $lang['delete_task_confirmation_header']; ?>",
+                message: "<?php echo $lang['delete_task_confirmation']; ?>",
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                    }
+                },
+                callback: function (result) {
+                    if (result) {
+                        showLoadingModal();
+                        fetch('', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'message=delete-task&task-id=' + taskId + '&class-id=' + currentClassId,
+                        })
+                        .then(response => response.text())
+                        .then(text => {
+                            hideLoadingModal();
+                            reloadWithTaskId(0);
+                        })
+                        .catch(error => {
+                            console.error('An error occurred:', error);
+                            hideLoadingModal();
+                        });
+                    }
+                }
+            });
+        }
+
+        function removeTaskFile(fieldType) {
+            bootbox.prompt({
+                title: "<?php echo $lang['confirm_remove_file']; ?>",
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                    }
+                },
+                callback: function (result) {
+                    if (result) {
+                        switch (fieldType) {
+                            case 'regular':
+                                fileName = document.getElementById('taskFile').nextElementSibling.innerText
+                            case 'correct-excel':
+                                fileName = document.getElementById('correctTaskFile').nextElementSibling.innerText
+                            case 'data-python':
+                                fileName = document.getElementById('correctPythonDataFile').nextElementSibling.innerText
+                            case 'data-orange':
+                                fileName = document.getElementById('correctOrangeDataFile').nextElementSibling.innerText
+                            default:
+                                break;
+                        }
+                        // TODO: implement real removal of files
+                        fetch('', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'message=remove-task-file&file-name=' + fileName,
+                        })
+                        .then(response => response.json())
+                        .then(result => {
+                            bootbox.alert("<?php echo $lang['file_removed']; ?>");
+                            if (fieldType === 'regular') {
+                                document.getElementById('taskFile').value = '';
+                                document.getElementById('taskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
+                                document.getElementById('removeTaskFileButton').style.display = 'none';
+                            }
+                            else if (fieldType === 'correct-excel') {
+                                document.getElementById('correctTaskFile').value = '';
+                                document.getElementById('correctTaskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
+                                document.getElementById('removeCorrectTaskFileButton').style.display = 'none';
+                            }
+                            else if (fieldType === 'data-python') {
+                                document.getElementById('correctPythonDataFile').value = '';
+                                document.getElementById('correctPythonDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
+                                document.getElementById('removePythonDataFileButton').style.display = 'none';
+                            }
+                            else if (fieldType === 'data-orange') {
+                                document.getElementById('correctOrangeDataFile').value = '';
+                                document.getElementById('correctOrangeDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
+                                document.getElementById('removeOrangeDataFileButton').style.display = 'block';
+                            }
+
+                        })
+                        .catch(error => {
+                            bootbox.alert("<?php echo $lang['error_removing_file']; ?>");
+                        });
+                    }
+                }
+            });
         }
 
         function changeApiKey()
@@ -2478,6 +2901,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         document.getElementById('step2').style.display = 'none';
                         document.getElementById('step3').style.display = 'none';
                         document.getElementById('step4').style.display = 'none';
+                        updateFooterButtons(currentStep, 'PDF');
                     }
                 }
             });
@@ -2570,10 +2994,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 const pythonDataFileInput = document.getElementById('correctPythonDataFile');
                 const pythonDataFileName = pythonDataFileInput.files.length > 0 ? pythonDataFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
+                const orangeDataFileInput = document.getElementById('correctOrangeDataFile');
+                const orangeDataFileName = orangeDataFileInput.files.length > 0 ? orangeDataFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 document.getElementById('displayTaskFile').innerText = fileName;
                 document.getElementById('displayTaskCorrectFile').innerText = correctFileName;
                 document.getElementById('displayTaskPythonDataFile').innerText = pythonDataFileName;
                 document.getElementById('displayTaskPythonProgramExecutionResult').innerText = document.getElementById('correctPythonProgramExecutionResult').value;
+                document.getElementById('displayTaskOrangeDataFile').innerText = orangeDataFileName;
+                document.getElementById('displayTaskOrangeProgramExecutionResult').innerText = document.getElementById('correctOrangeProgramExecutionResult').value;
+
                 document.getElementById('displayTaskName').innerText = document.getElementById('taskName').value;
                 document.getElementById('displayTaskType').innerText = document.getElementById('taskType').value;
                 document.getElementById('displayTaskDescription').innerText = document.getElementById('taskDescription').value;
@@ -2582,13 +3011,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     bootbox.alert('<?php echo $lang['please_fill_in_all_fields']; ?>');
                     return;
                 }
-                
-                if (fileInput.files.length === 0 &&  (taskType === 'PDF' || taskType === 'Excel')) {
+
+                fileInputText = document.getElementById('taskFile').nextElementSibling.innerText;
+                correctFileInputText = document.getElementById('correctTaskFile').nextElementSibling.innerText;                
+                if ((fileInputText == "" || fileInputText == null) &&  (taskType === 'PDF' || taskType === 'Excel') && taskState === 'Add') {
                     bootbox.alert('<?php echo $lang['please_fill_in_all_fields']; ?>');
                     return;
                 }
 
-                if (taskType === 'Excel' &&  correctFileInput.files.length === 0) {
+
+                if (taskType === 'Excel' &&  (correctFileInputText == "" || correctFileInputText == null)) {
                     bootbox.alert('<?php echo $lang['please_fill_in_all_fields']; ?>');
                     return;
                 }
@@ -2690,14 +3122,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const taskSummary = document.getElementById('taskSummary').value;
             const taskQuestions = document.getElementById('taskQuestions').value;
             let newTaskId = 0;
+            if (taskState === 'Add') {
+                taskMessage = 'task-save';
+            } else {
+                taskMessage = 'task-update';
+            }
 
             // Create the data object
             const data = {
-                message: 'task-save',
+                message: taskMessage,
                 name: taskName,
                 text: taskDescription,
                 type: taskType,
                 class_id: currentClassId,
+                task_id: editedTaskID,
                 file_clean: currentTaskFilePath,
                 file_correct: currentCorrectTaskFilePath,
                 python_data_file: currentPythonDataFilePath,
@@ -2705,12 +3143,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 file_uri: currentTaskFileUri,
                 correct_file_uri: currentCorrectTaskFileUri,
                 python_data_file_uri: currentPythonDataFileUri,
-                orange_data_file_uri: '',
+                orange_data_file_uri: currentOrangeDataFileUri,
                 python_program_execution_result: pythonProgramExecutionResult,
-                orange_program_execution_result: '',
+                orange_program_execution_result: orangeProgramExecutionResult,
                 system_prompt: taskSummary,
                 default_summary: taskSummary,
-                default_self_check_questions: taskQuestions
+                default_self_check_questions: taskQuestions,
+                task_file_changed: taskFileChanged,
+                correct_task_file_changed: correctTaskFileChanged,
+                python_data_file_changed: pythonDataFileChanged,
+                orange_data_file_changed: orangeDataFileChanged
             };
 
             // Log the task questions
@@ -2748,6 +3190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Close the modal
             closeModal();
+            currentStep = 1;
         }
 
 
@@ -2786,7 +3229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             openUserListModal();
         }
 
-        function createSelfCheckAccordion(questions, elementToAddAfter) {
+        function createSelfCheckAccordion(questions, elementToAddAfter, displayOnly = false) {
             const strongText = document.createElement('strong');
             strongText.innerText = '<?php echo $lang['self_check_questions']; ?>:';
             elementToAddAfter.parentNode.insertBefore(strongText, elementToAddAfter.nextSibling);
@@ -2830,7 +3273,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 collapseDiv.appendChild(cardBody);
                 card.appendChild(collapseDiv);
                 accordionContainer.appendChild(card);
+
+                if (!displayOnly) {
+                    // Add edit and delete buttons
+                    const editButton = document.createElement('button');
+                    editButton.classList.add('btn','btn-warning','btn-sm');
+                    editButton.style.marginRight = '0.5rem';
+                    editButton.innerText = '<?php echo $lang['edit']; ?>';
+                    editButton.addEventListener('click', function() {
+                        bootbox.prompt({
+                            title: "<?php echo $lang['enter_question']; ?>",
+                            value: q.question,
+                            callback: function(newQuestion) {
+                                if (newQuestion !== null) {
+                                    bootbox.prompt({
+                                        title: "<?php echo $lang['enter_answer']; ?>",
+                                        value: q.answer,
+                                        callback: function(newAnswer) {
+                                            if (newAnswer !== null) {
+                                                questions[index].question = newQuestion;
+                                                questions[index].answer = newAnswer;
+                                                questions.forEach((q, i) => {
+                                                    q.order_number = i + 1.0;
+                                                });
+                                                document.getElementById('taskQuestions').value = JSON.stringify({ questions }, null, 2);
+                                                accordionContainer.innerHTML = '';
+                                                createSelfCheckAccordion(questions, elementToAddAfter);
+                                            }
+                                        }
+                                    });
+                                }
+                            }
+                        });
+                    });
+                    cardBody.appendChild(editButton);
+                    const deleteButton = document.createElement('button');
+                    deleteButton.classList.add('btn','btn-danger','btn-sm');
+                    deleteButton.innerText = '<?php echo $lang['delete']; ?>';
+                    deleteButton.addEventListener('click', function() {
+                        bootbox.confirm("<?php echo $lang['confirm_delete_question']; ?>", function(result) {
+                            if(result) {
+                                questions.splice(index, 1);
+                                questions.forEach((q, i) => {
+                                    q.order_number = i + 1.0;
+                                });
+                                document.getElementById('taskQuestions').value = JSON.stringify({ questions }, null, 2);
+                                accordionContainer.innerHTML = '';
+                                createSelfCheckAccordion(questions, elementToAddAfter);
+                            }
+                        });
+                    });
+                    cardBody.appendChild(deleteButton);
+                }
             });
+
+            if (!displayOnly) {
+                // Add button to create new question
+                const createButton = document.createElement('button');
+                createButton.classList.add('btn','btn-success','btn-sm');
+                createButton.innerText = '<?php echo $lang['add_question']; ?>';
+                createButton.addEventListener('click', function() {
+                    bootbox.prompt({
+                        title: "<?php echo $lang['enter_question']; ?>",
+                        callback: function(newQuestion) {
+                            if (newQuestion) {
+                                bootbox.prompt({
+                                    title: "<?php echo $lang['enter_answer']; ?>",
+                                    callback: function(newAnswer) {
+                                        if (newAnswer) {
+                                            questions.push({ question: newQuestion, answer: newAnswer });
+                                            questions.forEach((q, i) => {
+                                                q.order_number = i + 1.0;
+                                            });
+                                            document.getElementById('taskQuestions').value = JSON.stringify({ questions }, null, 2);
+                                            accordionContainer.innerHTML = '';
+                                            createSelfCheckAccordion(questions, elementToAddAfter);
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    });
+                });
+                accordionContainer.appendChild(createButton);
+            }
 
             elementToAddAfter.parentNode.insertBefore(accordionContainer, strongText.nextSibling);
             hideLoadingModal();
@@ -2903,12 +3429,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             var fileName = this.files[0].name;
             var nextSibling = this.nextElementSibling;
             nextSibling.innerText = fileName;
+            document.getElementById('removeTaskFileButton').style.display = 'block';
+            taskFileChanged = true;
         });
 
         document.getElementById('correctTaskFile').addEventListener('change', function() {
             var fileName = this.files[0].name;
             var nextSibling = this.nextElementSibling;
             nextSibling.innerText = fileName;
+            document.getElementById('removeCorrectTaskFileButton').style.display = 'block';
+            correctTaskFileChanged = true;
+        });
+
+        document.getElementById('correctPythonDataFile').addEventListener('change', function() {
+            var fileName = this.files[0].name;
+            var nextSibling = this.nextElementSibling;
+            nextSibling.innerText = fileName;
+            document.getElementById('removePythonDataFileButton').style.display = 'block';
+            pythonDataFileChanged = true;
+        });
+
+        document.getElementById('correctOrangeDataFile').addEventListener('change', function() {
+            var fileName = this.files[0].name;
+            var nextSibling = this.nextElementSibling;
+            nextSibling.innerText = fileName;
+            document.getElementById('removeOrangeDataFileButton').style.display = 'block';
+            orangeDataFileChanged = true;
         });
 
         userInput.addEventListener('keydown', function(event) {
