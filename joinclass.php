@@ -49,20 +49,30 @@ if (isset($_POST['message'])) {
             joinClass($_POST['teacher_username']);
         }
     }
+    elseif ($message === 'cancel-tied-request') {
+        error_log('Cancelling tied request');
+        $user_manager->update_user_tied_request($username, '', false);
+        echo $lang['request_cancelled'];
+        error_log('Tied request cancelled');
+        exit();
+    }
 }
 
 function joinClass($teacher_username) {
     global $username;
     global $user_manager;
+    global $lang;
     $teacher_user = $user_manager->get_user_by_username($teacher_username);
     if ($teacher_user) {
         $user_manager->update_user_tied_request($username, $teacher_username, true);
-        echo json_encode($teacher_user);
+        echo $teacher_user->user_username;
         error_log('Class join request successful');
+        exit();
     }
     else {
-        echo 'Teacher not found';
-        error_log('Teacher not found');
+        echo $lang['teacher_not_found'];
+        error_log($lang['teacher_not_found']);
+        exit();
     }
 }
 
@@ -74,14 +84,25 @@ function joinClass($teacher_username) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Join Class</title>
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@3.0.7/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootbox.js/6.0.0/bootbox.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         body {
             background-color: #f8f9fa;
         }
         .container {
-            max-width: 500px;
-            margin-top: 50px;
+            width: 50%;
+            margin: 50px auto;
             background: white;
             padding: 20px;
             border-radius: 8px;
@@ -116,19 +137,31 @@ function joinClass($teacher_username) {
 
 <div class="container">
     <div id="itaiassistant101_join_class_Form">
-        <h2><?php echo $lang['join_class_to_start'] ?></h2>
+        <?php if(empty($current_user->tied_request)): ?>
+            <h2><?php echo $lang['join_class_to_start'] ?></h2>
             <div class="form-group">
                 <label for="teacher_username"><?php echo $lang['teacher_username'] ?></label>
                 <input type="text" id="teacher_username" name="teacher_username" class="form-control" required>
             </div>
             <button class="btn btn-primary" onclick="joinClass()"><?php echo $lang['login'] ?></button>
+        <?php else: ?>
+            <h2><?php echo $lang['request_pending'] ?></h2>
+            <p class="text-center"><?php echo sprintf($lang['request_sent_to'], $current_user->tied_request) ?></p>
+            <div class="text-center">
+                <button class="btn btn-danger" onclick="cancelTiedRequest()"><?php echo $lang['cancel_request'] ?></button>
+            </div>
+        <?php endif; ?>
     </div>
 
     <br>
     <br>
-<div class="text-center"></div>
-    <a href="login.php?lang=en" onclick="event.preventDefault(); window.location.href='<?php echo home_url('/itaiassistant101/login?lang=en'); ?>';"><?php echo $lang['lang_en'] ?></a>
-    | <a href="login.php?lang=lt" onclick="event.preventDefault(); window.location.href='<?php echo home_url('/itaiassistant101/login?lang=lt'); ?>';"><?php echo $lang['lang_lt'] ?></a>
+<div class="text-center mb-3">
+    <button class="button is-danger" onclick="confirmLogout()"><?php echo $lang['logout']; ?></button>
+</div>
+<div class="text-center">
+    <a href="login.php?lang=en"><?php echo $lang['lang_en'] ?></a>
+    | <a href="login.php?lang=lt"><?php echo $lang['lang_lt'] ?></a>
+</div>
 </div>
 
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
@@ -143,23 +176,102 @@ function joinClass($teacher_username) {
       
     });
 
+    $(document).ready(function() {
+
+      
+    });
+
     function joinClass() {
-            teacherUsername = document.getElementById('teacher_username').value;
-            fetch('', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
+        teacherUsername = document.getElementById('teacher_username').value;
+        fetch('', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'message=join-class&teacher_username=' + teacherUsername,
+        })
+        .then(response => response.text())
+        .then(message => {
+            console.log(message);
+            console.log("<?php echo $lang['teacher_not_found']; ?>");
+            if (message === "<?php echo $lang['teacher_not_found']; ?>") {
+                bootbox.alert('<?php echo $lang['teacher_not_found']; ?>');
+                return;
+            }
+            else {
+                bootbox.alert({
+                    message: '<?php echo $lang['class_join_request_sent']; ?> ' + message,
+                    callback: function() {
+                        window.location.reload();
+                    }
+                });
+            }
+        })
+        .catch(error => {
+            bootbox.alert('<?php echo $lang['error_sending_join_request']; ?>');
+        });
+    }
+
+    function cancelTiedRequest() {
+        bootbox.confirm({
+            title: "<?php echo $lang['cancel_request_confirmation_header']; ?>",
+            message: "<?php echo $lang['cancel_request_confirmation']; ?>",
+            buttons: {
+                cancel: {
+                    label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
                 },
-                body: 'message=join-class&teacher_username=' + teacherUsername,
-            })
-            .then(response => response.json())
-            .then(message => {
-                bootbox.alert('Class joined successfully ' + message);
-            })
-            .catch(error => {
-                bootbox.alert('An error occurred');
-            });
-        }
+                confirm: {
+                    label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                }
+            },
+            callback: function (result) {
+                if (result) {
+                    fetch('', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: 'message=cancel-tied-request',
+                    })
+                    .then(response => response.text())
+                    .then(message => {
+                        console.log(message);
+                        if (message.includes("<?php echo $lang['request_cancelled']; ?>")) {
+                            bootbox.alert({
+                                message: "<?php echo $lang['request_cancelled']; ?>",
+                                callback: function() {
+                                    window.location.reload();
+                                }
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        bootbox.alert('<?php echo $lang['error_cancelling_request']; ?>');
+                    });
+                }
+            }
+        });
+    }
+    
+    function confirmLogout() {
+        bootbox.confirm({
+            title: "<?php echo $lang['logout_confirmation_header']; ?>",
+            message: "<?php echo $lang['logout_confirmation']; ?>",
+            buttons: {
+                cancel: {
+                    label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                },
+                confirm: {
+                    label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                }
+            },
+            callback: function (result) {
+                if (result) {
+                    window.location.href = "<?php echo home_url('/itaiassistant101/logout'); ?>";
+                }
+            }
+        });
+    }
 
 </script>
 </body>

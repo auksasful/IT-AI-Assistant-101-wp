@@ -522,14 +522,15 @@ function getClassUserList($class_id) {
     global $user_manager;
     global $username;
     $current_user = $user_manager->get_user_by_username($username);
-    if ($current_user->user_role == 'teacher') {
-        $returnArray = $user_manager->get_students_by_teacher($username);
-        // $returnArray[] = $current_user;
-        return $returnArray;
-    }
-    else {
-        return $classManager->get_class_users($class_id);
-    }
+    return $classManager->get_class_users($class_id, $username);
+    // if ($current_user->user_role == 'teacher') {
+    //     $returnArray = $user_manager->get_students_by_teacher($username);
+    //     // $returnArray[] = $current_user;
+    //     return $returnArray;
+    // }
+    // else {
+    //     return $classManager->get_class_users($class_id);
+    // }
 }
 
 function removeClassUser($class_id, $username) {
@@ -856,13 +857,115 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         elseif($input === 'class-list') {
             $classes = getClassList();
+            // go through each class and check if the user is the main teacher
+            // if yes, add property to the classes array use_actions as true
+            // if no, add property to the classes array use_actions as false
+            $current_user = $user_manager->get_user_by_username($username);
+            foreach ($classes as $class) {
+                if ($class->class_main_teacher == $username) {
+                    $class->use_actions = true;
+                }
+                else {
+                    $class->use_actions = false;
+                }
+
+                if ($current_user->default_class_id == $class->class_id) {
+                    $class->is_default = true;
+                }
+                else {
+                    $class->is_default = false;
+                }
+
+                if ($current_user->last_used_class_id == $class->class_id) {
+                    $class->is_last_used = true;
+                }
+                else {
+                    $class->is_last_used = false;
+                }
+            }
             echo json_encode($classes);
         }
         elseif($input === 'class-user-list')
         {
             $class_id = $_POST['class_id'];
             $users = getClassUserList($class_id);
+            $class = $classManager->get_class_by_id($class_id);
+            for ($i = 0; $i < count($users); $i++) {
+                if ($users[$i]->user_username == $username) {
+                    $users[$i]->is_current_user = true;
+                }
+                else {
+                    $users[$i]->is_current_user = false;
+                }
+                if ($class->class_main_teacher == $users[$i]->user_username) {
+                    $users[$i]->is_teacher = true;
+                }
+                else {
+                    $users[$i]->is_teacher = false;
+                }
+            }
+            // Put the teacher at the beginning of the array, the current user in the middle and the students at the end
+            $teacher = null;
+            $current_user = null;
+            $students = [];
+            for ($i = 0; $i < count($users); $i++) {
+                if ($users[$i]->is_teacher) {
+                    $teacher = $users[$i];
+                }
+                elseif ($users[$i]->is_current_user) {
+                    $current_user = $users[$i];
+                }
+                else {
+                    $students[] = $users[$i];
+                }
+            }
+            $users = [];
+            if ($teacher) {
+                $users[] = $teacher;
+            }
+            if ($current_user) {
+                $users[] = $current_user;
+            }
+            $users = array_merge($users, $students);
+
             echo json_encode($users);
+        }
+        elseif($input === 'check-if-class-is-not-main-for-teacher')
+        {
+            $class_id = $_POST['class_id'];
+            if ($classManager->check_if_teacher_and_class_is_default($username, $class_id)) {
+                echo "false";
+            } else {
+                echo "true"; 
+            }
+            exit();           
+        }
+        elseif($input === 'get-teacher-unadded-students')
+        {
+            $class_id = $_POST['class_id'];
+            // check if request is from the teacher of the class
+            $class = $classManager->get_class_by_id($class_id);
+            if ($class->class_main_teacher != $username) {
+                echo json_encode([]);
+                exit();
+            }
+            $students = $classManager->get_teacher_unadded_students($username, $class_id);
+            echo json_encode($students);
+        }
+        elseif ($input === 'add-users-to-class') {
+            $class_id = $_POST['class_id'];
+            $users = $_POST['users'];
+            $class = $classManager->get_class_by_id($class_id);
+            if ($class->class_main_teacher != $username) {
+                echo json_encode('not allowed');
+                exit();
+            }
+            error_log('users before json decode: ' . $users);
+            $users = json_decode(stripslashes($users));
+            $classManager->add_users_to_class($class_id, $users);
+            echo json_encode('success');
+            exit();
+
         }
         elseif($input === 'delete-user-from-class')
         {
@@ -898,9 +1001,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         elseif($input === 'add-new-class') {
-            $new_api_key = $_POST['class_name'];
-            $classManager->insert_class($class_name, $username, true);
-            return true;
+            $class_name = $_POST['class_name'];
+            $result = $classManager->insert_class($class_name, $username, false);
+            if ($result) {
+                return json_encode('Class added successfully');
+            }
+            return json_encode('Class not added');
+        }
+        elseif ($input === 'delete-class') {
+            $class_id = $_POST['class_id'];
+            $class = $classManager->get_class_by_id($class_id);
+            if ($class->class_main_teacher == $username) {
+                $teacher_user = $user_manager->get_user_by_username($username);
+                if ($teacher_user->default_class_id == $class_id) {
+                    return false;
+                }
+                
+                $tasks = $taskManager->get_tasks_by_class_id($class_id, $username);
+                $classManager->remove_class(class_id: $class_id);
+                foreach ($tasks as $task) {
+                    deleteFile($task->task_file_clean);
+                    deleteFile($task->task_file_correct);
+                    deleteFile($task->python_data_file);
+                    deleteFile($task->orange_data_file);
+                }
+                return true;
+            }
+            return false;
+        }
+        elseif ($input === 'edit-class') {
+            $class_id = $_POST['class_id'];
+            $class_name = $_POST['class_name'];
+            $class = $classManager->get_class_by_id($class_id);
+            if ($class->class_main_teacher == $username) {
+                $teacher_user = $user_manager->get_user_by_username($username);
+                if ($teacher_user->default_class_id == $class_id) {
+                    return false;
+                }
+                
+                $classManager->edit_class($class_id, $class_name);
+                return true;
+            }
+            return false;
+        }
+        elseif($input === 'select-class') {
+            $class_id = $_POST['class_id'];
+            $user = $user_manager->get_user_by_username($username);
+            $class_users = $classManager->get_class_users($class_id, $username);
+            for ($i = 0; $i < count($class_users); $i++) {
+                if ($class_users[$i]->user_username == $username) {
+                    $classManager->set_last_used_class($username, $class_id);
+                    return true;
+                }
+            }
+            return false;
+        }
+        elseif($input === 'get-tied-requests-count') {
+            // check if the user is a teacher
+            $user = $user_manager->get_user_by_username($username);
+            if ($user->user_role == 'teacher') {
+                $count = $user_manager->get_tied_requests_count($username);
+                echo $count > 0 ? $count : 'none';
+            }
+            else {
+                echo 'none';
+            }
         }
         elseif($input === 'change-api-key') {
             $new_api_key = $_POST['new_api_key'];
@@ -1177,6 +1342,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .task-item.selected {
             background-color: #d3d3d3;
         }
+        .class-list-item {
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .class-list-item:hover {
+            background-color: #f0f0f0;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
         .message-container {
             display: flex;
             justify-content: flex-start;
@@ -1214,6 +1388,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             display: none;
             font-style: italic;
             color: grey;
+        }
+        #openAddUsersModal {
+            display: none;
         }
         .bootbox-input.bootbox-input-password.form-control {
             width: 90%;
@@ -1261,7 +1438,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <section class="section">
         <div class="left-panel">
             <div class="top-left-buttons">
-                <button class="button is-link" onclick="openClassModal()"><?php echo $lang['select_class']; ?></button>
+                <button class="button is-link" id="openClassModalButton" onclick="openClassModal()">
+                    <?php echo $lang['select_class']; ?> 
+                     <span class="badge badge-light" id="classNotificationBadge" style="display: none;"> 0</span>
+                </button>
                 <button class="button is-primary" onclick="addTask()"><?php echo $lang['add_task']; ?></button>
             </div>
             <div class="task-list"></div>
@@ -1453,7 +1633,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Add Class Modal -->
         <div class="modal" id="addClassModal">
             <div class="modal-background"></div>
-            <div class="modal-card">
+            <div class="modal-card" style="width: 80%; max-width: 1200px;">
                 <header class="modal-card-head">
                     <p class="modal-card-title"><?php echo $lang['select_class']; ?></p>
                     <button class="delete" aria-label="close" onclick="closeClassModal()"></button>
@@ -1462,18 +1642,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="field">
                         <label class="label"><?php echo $lang['available_classes']; ?></label>
                         <div class="control">
-                                <table class="table">
-                                    <thead>
-                                        <tr>
-                                            <th><?php echo $lang['class_name']?></th>
-                                            <th><?php echo $lang['main_teacher']?></th>
-                                            <th><?php echo $lang['creation_date']?></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="class-list">
-                                        <!-- Add rows here dynamically using PHP or JavaScript -->
-                                    </tbody>
-                                </table>
+                                <div class="table-container" style="width: 100%; min-width: 800px; overflow-x: auto;">
+                                    <table class="table is-fullwidth">
+                                        <thead>
+                                            <tr>
+                                                <th><?php echo $lang['class_name']?></th>
+                                                <th><?php echo $lang['main_teacher']?></th>
+                                                <th><?php echo $lang['creation_date']?></th>
+                                                <th style="min-width: 200px;"><?php echo $lang['class_actions']?></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="class-list">
+                                            <!-- Add rows here dynamically using PHP or JavaScript -->
+                                        </tbody>
+                                    </table>
+                                </div>
                         </div>
                     </div>
                 </section>
@@ -1513,6 +1696,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </section>
             <footer class="modal-card-foot">
+                <button class="button is-primary" id="openAddUsersModal"><?php echo $lang['add_users']; ?></button>
                 <button class="button" onclick="closeUserListModal()"><?php echo $lang['close']; ?></button>
             </footer>
         </div>
@@ -2117,7 +2301,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             })
             .then(response => response.json())
             .then(classId => {
-                console.log('Current class ID: ', classId);
                 getTasksList(classId);
                 getClassList();
                 currentClassId = classId;
@@ -2148,7 +2331,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             },
                             body: 'message=clean-chat-history',
                         })
-                        .then(response => response.json())
+                        .then(response => response.text())
                         .then(result => {
                             // console.log('Chat history cleaned:', result);
                             chatContainer.innerHTML = '';
@@ -2351,8 +2534,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     console.log(classItem);
                     const newClassItem = document.createElement('tr');
 
+                    // Make row text bold if it's the last used class
+                    if (classItem.is_last_used) {
+                        newClassItem.style.fontWeight = 'bold';
+                    }
+
+                    newClassItem.classList.add('class-list-item');
+
                     const classNameElement = document.createElement('td');
-                    classNameElement.textContent = classItem.class_name;
+                    
+                    classNameElement.textContent = classItem.class_name  + " ";
+                    if (classItem.is_default) {
+                        const defaultBadge = document.createElement('span');
+                        defaultBadge.classList.add('badge', 'badge-info');
+                        defaultBadge.id = 'default-class-badge';
+                        defaultBadge.style.display = 'none';
+                        defaultBadge.textContent = '0';
+                        classNameElement.appendChild(defaultBadge);
+                    }
                     newClassItem.appendChild(classNameElement);
 
                     const classMainTeacherElement = document.createElement('td');
@@ -2363,11 +2562,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     classCreationDateElement.textContent = classItem.class_creation_date;
                     newClassItem.appendChild(classCreationDateElement);
 
-                    newClassItem.onclick = function() {
-                        selectClass(classItem.class_id);
+                    newClassItem.onclick = function(e) {
+                        if (e.target.tagName !== 'BUTTON') {
+                            selectClass(classItem.class_id);
+                        }
                     };
+                    
+                    // add table cell for actions
+                    if (classItem.use_actions) {
+                        const classActionsElement = document.createElement('td');
+                        classActionsElement.style.display = 'flex';
+                        classActionsElement.style.gap = '4px';
+
+                        if (!classItem.is_default) {
+                            const deleteButton = document.createElement('button');
+                            deleteButton.textContent = '<?php echo $lang['delete']; ?>';
+                            deleteButton.classList.add('button', 'is-danger', 'is-small');
+                            deleteButton.onclick = function() {
+                                deleteClass(classItem.class_id, classItem.class_name);
+                            };
+                            classActionsElement.appendChild(deleteButton);
+                        }
+                        
+                        const editButton = document.createElement('button');
+                        editButton.textContent = '<?php echo $lang['edit']; ?>';
+                        editButton.classList.add('button', 'is-warning', 'is-small');
+                        editButton.onclick = function() {
+                            editClass(classItem.class_id, classItem.class_name);
+                        };
+                        classActionsElement.appendChild(editButton);
+
+                        // Only show select button if not last used
+                        if (!classItem.is_last_used) {
+                            const selectButton = document.createElement('button');
+                            selectButton.textContent = '<?php echo $lang['select']; ?>';
+                            selectButton.classList.add('button', 'is-primary', 'is-small');
+                            selectButton.onclick = function() {
+                                selectClassWithReload(classItem.class_id);
+                            };
+                            classActionsElement.appendChild(selectButton);
+                        }
+
+                        newClassItem.appendChild(classActionsElement);
+                    }
                     classList.appendChild(newClassItem);
                 });
+                getTiedRequestsCount();
             })
             .catch(error => {
                 console.error('An error occurred:', error);
@@ -2390,7 +2630,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 users.forEach(userItem => {
                     console.log(userItem);
                     const newUserItem = document.createElement('tr');
-
+                    // userItem.is_current_user
+                    // Make row text bold if it's the last used class
+                    if (userItem.is_current_user) {
+                        newUserItem.style.fontWeight = 'bold';
+                    }
                     const classNameElement = document.createElement('td');
                     classNameElement.textContent = userItem.user_username;
                     newUserItem.appendChild(classNameElement);
@@ -2405,27 +2649,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     // add table cell for actions
                     const classActionsElement = document.createElement('td');
-                    const deleteButton = document.createElement('button');
-                    deleteButton.textContent = '<?php echo $lang['delete']; ?>';
-                    deleteButton.classList.add('button', 'is-danger');
-                    deleteButton.style.margin = '1px';
-                    deleteButton.onclick = function() {
-                        deleteUserFromClass(userItem.user_username, classId);
-                    };
-                    classActionsElement.appendChild(deleteButton);
+                    if (!userItem.is_teacher && !userItem.is_current_user) {
+                        const deleteButton = document.createElement('button');
+                        deleteButton.textContent = '<?php echo $lang['delete']; ?>';
+                        deleteButton.classList.add('button', 'is-danger');
+                        deleteButton.style.margin = '1px';
+                        deleteButton.onclick = function() {
+                            deleteUserFromClass(userItem.user_username, classId);
+                        };
+                        classActionsElement.appendChild(deleteButton);
+                    }
 
                     if (userItem.user_role === 'student' && userItem.tied_request !== '' && userItem.tied_request !== null) {
                         const acceptToClassButton = document.createElement('button');
                         acceptToClassButton.textContent = '<?php echo $lang['accept_to_class']; ?>';
                         acceptToClassButton.classList.add('button', 'is-success');
                         acceptToClassButton.style.margin = '1px';
-                        acceptToClassButton.id = 'acceptToClassButton-' + userItem.user_id;
+                        acceptToClassButton.id = 'acceptToClassButton-' + userItem.user_username;
                         acceptToClassButton.onclick = function() {
                             acceptUserToClass(userItem.user_username, classId);
                         };
                         classActionsElement.appendChild(acceptToClassButton);
                     }
-                    newUserItem.id = 'user-' + userItem.user_id;
+                    newUserItem.id = 'user-' + userItem.user_username;
                     newUserItem.appendChild(classActionsElement);
 
                     classUserList.appendChild(newUserItem);
@@ -2434,6 +2680,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .catch(error => {
                 console.error('An error occurred:', error);
             });
+        }
+
+        function checkIfClassIsNotMainForTeacher(classId) {
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=check-if-class-is-not-main-for-teacher&class_id=' + classId,
+            }).then(response => response.text())
+            .then(result => {
+                console.log('checkIfClassIsNotMainForTeacher result: ' + result);
+                if (result.includes('true')) {
+                    console.log('Class is not main for teacher');
+                    document.getElementById('openAddUsersModal').style.display = 'block';
+                    // set openAddUsersModal() function as onclick
+                    document.getElementById('openAddUsersModal').onclick = function() { 
+                        openAddUsersModal(classId);
+                    };
+                    openUserListModal();
+                } else {
+                    document.getElementById('openAddUsersModal').style.display = 'none';
+                }
+                openUserListModal();
+
+            })
         }
 
         function deleteUserFromClass(userId, classId) {
@@ -2457,10 +2729,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             },
                             body: 'message=delete-user-from-class&user_id=' + userId + '&class_id=' + classId,
                         })
-                        .then(response => response.json())
+                        .then(response => response.text())
                         .then(result => {
                             document.getElementById('user-' + userId).remove();
                             bootbox.alert("<?php echo $lang['user_deleted_from_class']; ?>");
+                            getClassList();
                         })
                         .catch(error => {
                             bootbox.alert("<?php echo $lang['error_deleting_user_from_class']; ?>");
@@ -2491,11 +2764,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             },
                             body: 'message=accept-user-to-class&user_id=' + userId + '&class_id=' + classId,
                         })
-                        .then(response => response.json())
+                        .then(response => response.text())
                         .then(result => {
                             document.getElementById('acceptToClassButton-' + userId).remove();
                             bootbox.alert("<?php echo $lang['user_accepted_to_class_successfully']; ?>");
-
+                            getClassList();
                         })
                         .catch(error => {
                             bootbox.alert("<?php echo $lang['error_accepting_user_to_class']; ?>");
@@ -2811,7 +3084,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             }
                                         },
                                         callback: function (result) {
-                                            if (result) {
+                                            if (result && result.length > 0) {
                                                 fetch('', {
                                                     method: 'POST',
                                                     headers: {
@@ -2819,7 +3092,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                     },
                                                     body: 'message=change-password&old_password=' + encodeURIComponent(oldPassword) + '&new_password=' + encodeURIComponent(newPassword),
                                                 })
-                                                .then(response => response.json())
+                                                .then(response => response.text())
                                                 .then(result => {
                                                     bootbox.alert("<?php echo $lang['password_changed']; ?>");
                                                 })
@@ -2836,6 +3109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             });
         }
+
         function addNewClass() {
             bootbox.prompt({
             title: "<?php echo $lang['enter_class_name']; ?>",
@@ -2850,23 +3124,151 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             },
             callback: function (className) {
                 if (className) {
-                fetch('', {
-                    method: 'POST',
-                    headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: 'message=add-new-class&class_name=' + encodeURIComponent(className),
-                })
-                .then(response => response.json())
-                .then(result => {
-                    bootbox.alert("<?php echo $lang['class_added_successfully']; ?>");
-                    getClassList(); // Refresh the class list
-                })
-                .catch(error => {
-                    bootbox.alert("<?php echo $lang['error_adding_class']; ?>");
-                });
+                    fetch('', {
+                        method: 'POST',
+                        headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: 'message=add-new-class&class_name=' + encodeURIComponent(className),
+                    })
+                    .then(response => response.text())
+                    .then(result => {
+                        if (result && result !== 'false') {
+                            bootbox.alert({
+                                message: "<?php echo $lang['class_added_successfully']; ?>",
+                                callback: function() {
+                                    getClassList(); // Refresh the class list
+                                }
+                            });
+                        } else {
+                            bootbox.alert({
+                                message: "<?php echo $lang['error_adding_class']; ?>"
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        bootbox.alert({
+                            message: "<?php echo $lang['error_adding_class']; ?>"
+                        });
+                    });
                 }
             }
+            });
+        }
+
+        function deleteClass(classId, className)
+        {
+            bootbox.confirm({
+                title: "<?php echo $lang['confirm_delete_class']; ?> " + className + "?",
+                message: "<?php echo $lang['confirm_delete_class']; ?> " + className + "?",
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                    }
+                },
+                callback: function (result) {
+                    if(result) {
+                        fetch('', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'message=delete-class&class_id=' + classId,
+                        })
+                        .then(response => response.text())
+                        .then(result => {
+                            getClassList();
+                            bootbox.alert("<?php echo $lang['class_deleted']; ?>");
+                        })
+                        .catch(error => {
+                            bootbox.alert("<?php echo $lang['error_deleting_class']; ?>");
+                        });
+                    }
+                }
+            });
+        }
+
+        function editClass(classId, className)
+        {
+            bootbox.prompt({
+                title: "<?php echo $lang['enter_new_class_name']; ?>",
+                inputType: 'text',
+                value: className,
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                    }
+                },
+                callback: function (newClassName) {
+                    if (newClassName) {
+                        fetch('', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'message=edit-class&class_id=' + classId + '&class_name=' + encodeURIComponent(newClassName),
+                        })
+                        .then(response => response.text())
+                        .then(result => {
+                            getClassList();
+                            bootbox.alert("<?php echo $lang['class_edited']; ?>");
+                        })
+                        .catch(error => {
+                            bootbox.alert("<?php echo $lang['error_editing_class']; ?>");
+                        });
+                    }
+                }
+            });
+        }
+
+        function selectClassWithReload(classId)
+        {
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=select-class&class_id=' + classId,
+            })
+            reloadWithTaskId(0);
+        }
+
+        function getTiedRequestsCount()
+        {
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=get-tied-requests-count',
+            })
+            .then(response => response.text())
+            .then(result => {
+                const badge = document.getElementById('classNotificationBadge');
+                const defaultBadge = document.getElementById('default-class-badge');
+                if (!result.includes("none")) {
+                    badge.style.display = 'inline';
+                    badge.textContent = '  ' + result;
+                    bootbox.alert("<?php echo $lang['you_have_student_class_join_requests_accept_them_in_class_list']; ?><br><strong><?php echo $lang['student_class_join_requests_count']; ?>: " + result + "</strong>");
+                    defaultBadge.style.display = 'inline';
+                    defaultBadge.textContent = result;
+                } else {
+                    badge.style.display = 'none';
+                    badge.textContent = ' 0';
+                    defaultBadge.style.display = 'none';
+                    defaultBadge.textContent = ' 0';
+
+                }
+            })
+            .catch(error => {
+                console.error('An error occurred:', error);
             });
         }
 
@@ -3223,10 +3625,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function selectClass(classId) {
-            bootbox.alert('<?php echo $lang['you_selected']; ?> ' + classId);
+            // bootbox.alert('<?php echo $lang['you_selected']; ?> ' + classId);
             closeClassModal();
             getClassUserList(classId);
-            openUserListModal();
+            checkIfClassIsNotMainForTeacher(classId);
+        }
+
+        function openAddUsersModal(classId) {
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'message=get-teacher-unadded-students&class_id=' + classId,
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                // IF data is empty, show a message that there are no students to add
+                if (data.length === 0) {
+                    bootbox.alert('<?php echo $lang['no_students_to_add']; ?>');
+                    return;
+                }
+                const inputOptions = data.map(user => ({
+                    text: user.user_username + ' ' + user.user_name + ' ' + user.user_surname,
+                    value: user.user_username
+                }));
+                bootbox.prompt({
+                    title: "<?php echo $lang['select_students_to_add']; ?>",
+                    inputType: 'select',
+                    multiple: true,
+                    value: [],
+                    inputOptions: inputOptions,
+                    callback: function (result) {
+                        console.log(result);
+                        if (result) {
+                            fetch('', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                },
+                                body: 'message=add-users-to-class&class_id=' + classId + '&users=' + JSON.stringify(result),
+                            })
+                            .then(response => response.text())
+                            .then(result => {
+                                console.log(result);
+                                if (result.includes("success")) {
+                                    getClassUserList(classId);
+                                    bootbox.alert("<?php echo $lang['users_added_to_class_successfully']; ?>");
+                                } else {
+                                    bootbox.alert("<?php echo $lang['error_adding_users_to_class']; ?>");
+                                }
+                            })
+                            .catch(error => {
+                                bootbox.alert("<?php echo $lang['error_adding_users_to_class']; ?>");
+                            });
+                        }
+                    }
+                });
+            })
+            .catch(error => {
+                console.error(error);
+            });
         }
 
         function createSelfCheckAccordion(questions, elementToAddAfter, displayOnly = false) {
