@@ -199,5 +199,8 @@
         'error_adding_users_to_class' => 'Klaida pridedant naudotojus į klasę',
         'you_have_student_class_join_requests_accept_them_in_class_list' => 'Jūs turite mokinių prisijungimo prie klasės užklausų. Priimkite jas klasių sąraše.',
         'student_class_join_requests_count' => 'Mokinių prisijungimo prie klasės užklausų skaičius',
+        'error_exporting_tasks' => 'Klaida eksportuojant užduotis',
+        'error_importing_tasks' => 'Klaida importuojant užduotis',
+        'tasks_imported_successfully' => 'Užduotys importuotos sėkmingai',
     );
 ?>

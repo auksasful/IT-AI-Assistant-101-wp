@@ -1,4 +1,5 @@
 <?php
+
 /*
 Plugin Name: ITAI Assistant 101
 Description: A simple plugin for teacher authentication using API key.
@@ -399,4 +400,137 @@ function unschedule_delete_old_login_attempts() {
     wp_unschedule_event($timestamp, 'delete_old_login_attempts_event');
 }
 register_deactivation_hook(__FILE__, 'unschedule_delete_old_login_attempts');
+
+
+add_action('template_redirect', function() {
+    if (
+        isset($_GET['itaiassistant101_download_task_data']) &&
+        isset($_GET['classId']) //&&
+        //isset($_GET['username'])
+    ) {
+        require_once 'ClassManager.php';
+        require_once 'TaskManager.php';
+        require_once 'APIConnector.php';
+        require_once 'UserManager.php';
+        $classManager = new ClassManager();
+        $user_manager = new UserManager();
+        $taskManager = new TaskManager();
+        $api_connector = new ApiConnector('');
+        session_start();
+        error_log('itaiassistant101_download_task_data: Download task data called');
+        if (isset($_SESSION['jwt_token'])) {
+            error_log('itaiassistant101_download_task_data: jwt_token found');
+            $jwt_token = $_SESSION['jwt_token'];
+            $decoded_token = $api_connector->verify_jwt($jwt_token);
+            if ($decoded_token) {
+                error_log('itaiassistant101_download_task_data: Token valid');
+                $username = $decoded_token->data->username;
+                $userType = $decoded_token->data->user_type;
+                $current_user = $user_manager->get_user_by_username($username);
+                $class_id = $current_user->last_used_class_id;
+                if (!$class_id) {
+                    wp_redirect(home_url('/itaiassistant101/joinclass'));
+                    exit();
+                }
+                $message = home_url('/itaiassistant101');
+            } 
+            else {
+                wp_redirect(home_url('/itaiassistant101/login'));
+                exit();
+            }
+        } 
+        else {
+            wp_redirect(home_url('/itaiassistant101/login'));
+            exit();
+        }
+
+        $class_id = $_GET['classId'];
+        // $username = $_GET['username'];
+        $class = $classManager->get_class_by_id($class_id);
+        if ($class->class_main_teacher != $username) {
+            http_response_code(403);
+            exit;
+        }
+
+        $result = $taskManager->get_user_class_task_files_for_export($class_id);
+        $task_files = $result['task_files'];
+        $files = $result['files'];
+
+        // Create temporary directory with unique name
+        $temp_dir = sys_get_temp_dir() . '/task_export_' . uniqid();
+        if (!mkdir($temp_dir, 0700, true)) {
+            throw new Exception("Failed to create directory: {$temp_dir}");
+        }
+        $temp_dir = realpath($temp_dir); // Normalize path
+
+        // Create JSON file
+        $json_file = "{$temp_dir}/task_data.json";
+        $json_data = json_encode($task_files, JSON_THROW_ON_ERROR);
+        if (file_put_contents($json_file, $json_data) === false) {
+            throw new Exception("Failed to write JSON file");
+        }
+
+        // Copy files to temp directory
+        foreach ($files as $file) {
+            if (!file_exists($file)) {
+                error_log("Source file missing: {$file}");
+                continue;
+            }
+            $dest = "{$temp_dir}/" . basename($file);
+            if (!copy($file, $dest)) {
+                throw new Exception("Failed to copy {$file} to {$dest}");
+            }
+        }
+
+        // Create ZIP archive
+        $zip_file = "{$temp_dir}.zip";
+        $zip = new ZipArchive();
+        if ($zip->open($zip_file, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new Exception("Cannot open ZIP: {$zip_file}");
+        }
+
+        // Add files to ZIP
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($temp_dir),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+
+        foreach ($iterator as $file) {
+            if ($file->isDir()) continue;
+            
+            $file_path = $file->getRealPath();
+            $relative_path = substr($file_path, strlen($temp_dir) + 1);
+            $relative_path = str_replace('\\', '/', $relative_path); // Ensure UNIX-style paths
+
+            if (!$zip->addFile($file_path, $relative_path)) {
+                throw new Exception("Failed to add {$relative_path} to ZIP");
+            }
+        }
+
+        if (!$zip->close()) {
+            throw new Exception("Failed to finalize ZIP");
+        }
+
+        // Verify ZIP file exists
+        if (!file_exists($zip_file)) {
+            throw new Exception("ZIP file not created");
+        }
+
+        // Send ZIP to client
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="tasks_export.zip"');
+        header('Content-Length: ' . filesize($zip_file));
+        header('Pragma: no-cache');
+        
+        // Clear output buffer and send file
+        ob_end_clean();
+        readfile($zip_file);
+
+        // Cleanup
+        array_map('unlink', glob("{$temp_dir}/*.*"));
+        rmdir($temp_dir);
+        unlink($zip_file);
+        exit;
+    }
+});
 ?>

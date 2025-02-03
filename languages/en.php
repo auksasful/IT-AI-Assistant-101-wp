@@ -196,5 +196,8 @@
         'error_adding_users_to_class' => 'Error adding users to class',
         'you_have_student_class_join_requests_accept_them_in_class_list' => 'You have student class join requests. Accept them in class list',
         'student_class_join_requests_count' => 'Student class join requests: %s',
+        'error_exporting_tasks' => 'Error exporting tasks',
+        'error_importing_tasks' => 'Error importing tasks',
+        'tasks_imported_successfully' => 'Tasks imported successfully',
     );
 ?>

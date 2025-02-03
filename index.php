@@ -307,55 +307,114 @@ function sendModelFile($filePath) {
 
 
 // Function to handle file uploads
-function uploadFile() {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
+function uploadFile($fileParam, $phpCall = false) {
+    if (!defined('WP_CONTENT_DIR')) {
+        define('WP_CONTENT_DIR', __DIR__);
+        error_log("uploadFile: WP_CONTENT_DIR was not defined, setting it to " . WP_CONTENT_DIR);
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($fileParam)) {
         global $username;
         global $user_excel_string;
         global $API_KEY;
         global $current_task;
         $PDFReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
-        $folderPath = WP_CONTENT_DIR . '/ITAIAssistant101/' . $username . '/' . 'TASK' . $current_task->task_id;
-        error_log('folderPath when uploading: ' . $folderPath);
+        $folderPath = WP_CONTENT_DIR . "/ITAIAssistant101/$username/TASK" . $current_task->task_id;
+        error_log("uploadFile: folderPath when uploading: $folderPath");
         if (!is_dir($folderPath)) {
             mkdir($folderPath, 0777, true);
+            error_log("uploadFile: Created directory $folderPath");
         }
 
-        $file = $_FILES['file'];
+        $file = $fileParam;
         $dateTime = date('YmdHis');
-        $filePath = $folderPath . '/' . $username . '_' . $dateTime . '_' . basename($file['name']);  
+        $filePath = $folderPath . "/" . $username . "_" . $dateTime . "_" . basename($file['name']);
         $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
         $fileName = pathinfo($filePath, PATHINFO_FILENAME);
-        if (move_uploaded_file($file['tmp_name'], $filePath)) {
-            if ($_POST['message'] === 'python-data-file') {
-                $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, $fileName . '.txt', 'text/plain')[0];
-                return [$filePath, $fileUri]; 
+        $tmpname = $file['tmp_name'];
+        error_log("uploadFile: Moving uploaded file from $tmpname to $filePath");
+
+        if ($phpCall) {
+            if (copy($file['tmp_name'], $filePath)) {
+                error_log("uploadFile: File copied successfully");
+                if ($_POST['message'] === 'python-data-file') {
+                    $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.txt", 'text/plain')[0];
+                    error_log("uploadFile: python-data-file URI: $fileUri");
+                    return [$filePath, $fileUri];
+                }
+                if ($_POST['message'] === 'orange-data-file') {
+                    error_log("uploadFile: orange-data-file upload completed");
+                    return [$filePath, ''];
+                }
+                // if file extension is excel
+                if ($fileExtension == 'xlsx' || $fileExtension == 'xls') {
+                    $excel_reader = new ExcelReader($filePath);
+                    $excel_data = $excel_reader->readDataWithCoordinates();
+                    // move excel_data to text file with the same name to the same path but the extension is .txt
+                    $textFilePath = str_replace($fileExtension, 'txt', $filePath);
+                    $textFile = fopen($textFilePath, 'w');
+                    fwrite($textFile, print_r($excel_data, true));
+                    fclose($textFile);
+                    $fileUri = $PDFReader->uploadFileNew($API_KEY, $textFilePath, "$fileName.txt", 'text/plain')[0];
+                    error_log("uploadFile: Excel file uploaded, text data URI: $fileUri");
+                    return [$filePath, $fileUri];
+                }
+                elseif ($fileExtension == 'pdf') {
+                    $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.pdf", 'application/pdf')[0];
+                    error_log("uploadFile: PDF file URI: $fileUri");
+                    return [$filePath, $fileUri];
+                }
+                elseif (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'bmp'])) {
+                    $result = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.$fileExtension", "image/$fileExtension");
+                    error_log("uploadFile: Image file upload result: " . print_r($result, true));
+                    return [$filePath, $result[0], $result[1]];
+                }
+                error_log("uploadFile: No special handling needed for $filePath");
+                return [$filePath, ''];
+            } else {
+                error_log("uploadFile: copy() failed");
+                return '';
             }
-            if ($_POST['message'] === 'orange-data-file') {
-                return [$filePath, '']; 
-            }
-            // if file extension is excel
-            if ($fileExtension == 'xlsx' || $fileExtension == 'xls') {
-                $excel_reader = new ExcelReader($filePath);
-                $excel_data = $excel_reader->readDataWithCoordinates();
-                // move excel_data to text file with the same name to the same path but the extension is .txt
-                $textFilePath = str_replace($fileExtension, 'txt', $filePath);
-                $textFile = fopen($textFilePath, 'w');
-                fwrite($textFile, print_r($excel_data, true));
-                fclose($textFile);
-                $fileUri = $PDFReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain')[0];
-                return [$filePath, $fileUri]; 
-            }
-            elseif ($fileExtension == 'pdf') {
-                $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, $fileName . '.pdf', 'application/pdf')[0];
-                return [$filePath, $fileUri];  
-            }
-            elseif (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'bmp'])) {
-                $result = $PDFReader->uploadFileNew($API_KEY, $filePath, $fileName . '.' . $fileExtension, 'image/' . $fileExtension);
-                return [$filePath, $result[0], $result[1]];  
-            }
-            return [$filePath, ''];
         } else {
-            return '';
+            if (move_uploaded_file($file['tmp_name'], $filePath)) {
+                error_log("uploadFile: File uploaded successfully");
+                if ($_POST['message'] === 'python-data-file') {
+                    $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.txt", 'text/plain')[0];
+                    error_log("uploadFile: python-data-file URI: $fileUri");
+                    return [$filePath, $fileUri];
+                }
+                if ($_POST['message'] === 'orange-data-file') {
+                    error_log("uploadFile: orange-data-file upload completed");
+                    return [$filePath, ''];
+                }
+                // if file extension is excel
+                if ($fileExtension == 'xlsx' || $fileExtension == 'xls') {
+                    $excel_reader = new ExcelReader($filePath);
+                    $excel_data = $excel_reader->readDataWithCoordinates();
+                    // move excel_data to text file with the same name to the same path but the extension is .txt
+                    $textFilePath = str_replace($fileExtension, 'txt', $filePath);
+                    $textFile = fopen($textFilePath, 'w');
+                    fwrite($textFile, print_r($excel_data, true));
+                    fclose($textFile);
+                    $fileUri = $PDFReader->uploadFileNew($API_KEY, $textFilePath, "$fileName.txt", 'text/plain')[0];
+                    error_log("uploadFile: Excel file uploaded, text data URI: $fileUri");
+                    return [$filePath, $fileUri];
+                }
+                elseif ($fileExtension == 'pdf') {
+                    $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.pdf", 'application/pdf')[0];
+                    error_log("uploadFile: PDF file URI: $fileUri");
+                    return [$filePath, $fileUri];
+                }
+                elseif (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'bmp'])) {
+                    $result = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.$fileExtension", "image/$fileExtension");
+                    error_log("uploadFile: Image file upload result: " . print_r($result, true));
+                    return [$filePath, $result[0], $result[1]];
+                }
+                error_log("uploadFile: No special handling needed for $filePath");
+                return [$filePath, ''];
+            } else {
+                error_log("uploadFile: move_uploaded_file failed");
+                return '';
+            }
         }
     } else {
         return 'Invalid request method or no file uploaded';
@@ -1067,24 +1126,149 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo 'none';
             }
         }
+        elseif($input === 'import-tasks') {
+            $class_id = $_POST['class_id'];
+            // take the file as file
+            $file = $_FILES['file'];
+            // unzip the file and read task_data.json
+            $zip = new ZipArchive;
+            $res = $zip->open($file['tmp_name']);
+            // TODO: implement the import tasks logic for files
+            // Create a temporary directory for extraction
+            $temp_dir = WP_CONTENT_DIR . "/ITAIAssistant101/$username/TEMP/task_import_" . uniqid();
+            if (!is_dir(dirname($temp_dir))) {
+                mkdir(dirname($temp_dir), 0777, true);
+            }
+            if (!is_dir($temp_dir)) {
+                mkdir($temp_dir, 0777, true);
+            }
+
+            // Extract the zip file
+            $zip = new ZipArchive();
+            if ($zip->open($file['tmp_name']) === TRUE) {
+                $zip->extractTo($temp_dir);
+                $zip->close();
+                
+                // Read the task_data.json file
+                $json_file = $temp_dir . '/task_data.json';
+                if (file_exists($json_file)) {
+                    $task_data = json_decode(file_get_contents($json_file), true);
+                    if ($task_data) {
+                        foreach ($task_data as $task) {
+
+
+                            error_log('Processing task: ' . $task['task_name']);
+                            $files_to_process = [
+                                ['path' => $task['task_file_clean'], 'type' => 'task_file'],
+                                ['path' => $task['task_file_correct'], 'type' => 'correct_file'],
+                                ['path' => $task['python_data_file'], 'type' => 'python_data'],
+                                ['path' => $task['orange_data_file'], 'type' => 'orange_data']
+                            ];
+
+                            $new_uris = [];
+                            $new_paths = [];
+
+                            $filesUploadError = false;
+
+                            foreach ($files_to_process as $file_info) {
+                                if (!empty($file_info['path'])) {
+                                    $filename = basename($file_info['path']);
+                                    $source_path = "{$temp_dir}/{$filename}";
+                                    // error_log everything contained in $temp_dir
+                                    error_log('Temp dir contents: ' . json_encode(scandir($temp_dir)));
+
+                                    error_log('Processing file: ' . $source_path);
+                                    if (file_exists($source_path)) {
+                                        // Create temporary file
+                                        // $temp_upload = tempnam(sys_get_temp_dir(), 'upload_');
+                                        // if (copy($source_path, $temp_upload)) {
+                                        $fileArray = [
+                                            'name' => basename($source_path),
+                                            'tmp_name' => $source_path,
+                                            'type' => mime_content_type($source_path),
+                                            'size' => filesize($source_path),
+                                            'error' => 0
+                                        ];
+                                            // error_log('File info: ' . json_encode($fileArray));
+                                        // } else {
+                                        //     error_log('Failed to create temporary file from: ' . $source_path);
+                                        //     continue;
+                                        // }
+                                        $result = uploadFile($fileArray, true);
+                                        
+                                        if ($result) {
+                                            // $upload_result = json_decode($result, true);
+                                            $new_paths[$file_info['type']] = $result[0];
+                                            $new_uris[$file_info['type']] = $result[1];
+                                            error_log('File uploaded successfully: ' . $file_info['type']);
+                                        }
+                                        else {
+                                            error_log('Failed to upload file: ' . $file_info['type']);
+                                            $filesUploadError = true;
+                                        }
+                                    }
+                                    else {
+                                        error_log('File does not exist: ' . $source_path);
+                                        $filesUploadError = true;
+                                    }
+                                }
+                            }
+                            if ($filesUploadError) {
+                                echo 'failed';
+                                exit();
+                            } else {
+                            $taskManager->insert_task(
+                                $task['task_name'],
+                                $task['task_text'], 
+                                $task['task_type'],
+                                $class_id,
+                                $new_paths['task_file'] ?? null,
+                                $new_paths['correct_file'] ?? null,
+                                $new_paths['python_data'] ?? null,
+                                $new_paths['orange_data'] ?? null,
+                                $new_uris['task_file'] ?? null,
+                                $new_uris['correct_file'] ?? null,
+                                $new_uris['python_data'] ?? null,
+                                $new_uris['orange_data'] ?? null,
+                                $task['python_program_execution_result'],
+                                $task['orange_program_execution_result'],
+                                $task['system_prompt'],
+                                $task['default_summary'],
+                                $task['default_self_check_questions']
+                            );
+                        }
+                        }
+                        echo 'success';
+                    }
+                }
+                
+                // Clean up temp directory
+                array_map('unlink', glob("$temp_dir/*.*"));
+                rmdir($temp_dir);
+            } else {
+                echo 'failed';
+            }
+            
+        }       
         elseif($input === 'change-api-key') {
             $new_api_key = $_POST['new_api_key'];
             return $user_manager->update_user_api_key($username, $new_api_key);
         }
         elseif($input === 'task-file') {
-            $result = uploadFile();
+
+            $result = uploadFile($_FILES['file']);
             echo json_encode($result);
         }
         elseif($input === 'python-data-file') {
-            $result = uploadFile();
+            $result = uploadFile($_FILES['file']);
             echo json_encode($result);
         }
         elseif($input === 'orange-data-file') {
-            $result = uploadFile();
+            $result = uploadFile($_FILES['file']);
             echo json_encode($result);
         }
         elseif($input === 'done-task-file') {
-            $result = uploadFile();
+            $result = uploadFile($_FILES['file']);
             $task_id = $_POST['task_id'];
             $class_id = $_POST['class_id'];
             $task = $taskManager->get_task($task_id, $username);
@@ -1237,9 +1421,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
         }
     } elseif (isset($_FILES['file'])) {
-        $result = uploadFile();
+        $result = uploadFile($_FILES['file']);
         echo json_encode($result);
-    }
+    } 
     exit(); // End the program after sending the response
 }
 ?>
@@ -1745,7 +1929,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <button class="button is-primary" onclick="exportTasks()"><?php echo $lang['export'] ?></button>
                             </div>
                         </div>
-                    </div>
+                        </div>
                 </div>
 
 
@@ -3138,6 +3322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 message: "<?php echo $lang['class_added_successfully']; ?>",
                                 callback: function() {
                                     getClassList(); // Refresh the class list
+                                    reloadWithTaskId(0);
                                 }
                             });
                         } else {
@@ -3274,12 +3459,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         function importTasks()
         {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.zip';
+            
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
 
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('message', 'import-tasks');
+                formData.append('class_id', currentClassId);
+
+                showLoadingModal();
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.text())
+                .then(result => {
+                    hideLoadingModal();
+                    console.log('tasks import result: ' + result);
+                    if (result.includes('success')) {
+                        bootbox.alert("<?php echo $lang['tasks_imported_successfully']; ?>");
+                        getTasksList(currentClassId);
+                    } else {
+                        bootbox.alert("<?php echo $lang['error_importing_tasks']; ?>");
+                    }
+                })
+                .catch(error => {
+                    hideLoadingModal();
+                    bootbox.alert("<?php echo $lang['error_importing_tasks']; ?>");
+                });
+            };
+
+            input.click();
         }
 
         function exportTasks()
         {
-
+            window.location.href = window.location.href + '?itaiassistant101_download_task_data=1&classId=' + currentClassId;
         }
 
 
