@@ -22,7 +22,15 @@ function itaiassistant101_rewrite_rule() {
     add_rewrite_rule('^itaiassistant101/index/?', 'index.php?itaiassistant101_index=1', 'top');
     add_rewrite_rule('^itaiassistant101/joinclass/?', 'index.php?itaiassistant101_joinclass=1', 'top');
     add_rewrite_rule('^itaiassistant101/faq/?', 'index.php?itaiassistant101_faq=1', 'top');
+    add_rewrite_rule('^itaiassistant101/changepw/?', 'index.php?itaiassistant101_changepw=1', 'top');
+    
 }
+function itaiassistant101_activate() {
+    itaiassistant101_rewrite_rule();
+    flush_rewrite_rules();
+}
+register_activation_hook(__FILE__, 'itaiassistant101_activate');
+
 add_action('init', 'itaiassistant101_rewrite_rule');
 
 // Add new query vars
@@ -39,6 +47,7 @@ function itaiassistant101_query_vars($vars) {
     $vars[] = 'itaiassistant101_index';
     $vars[] = 'itaiassistant101_joinclass';
     $vars[] = 'itaiassistant101_faq';
+    $vars[] = 'itaiassistant101_changepw';
     return $vars;
 }
 add_filter('query_vars', 'itaiassistant101_query_vars');
@@ -69,6 +78,8 @@ function itaiassistant101_template_include($template) {
         return plugin_dir_path(__FILE__) . 'joinclass.php';
     } elseif (get_query_var('itaiassistant101_faq')) { 
         return plugin_dir_path(__FILE__) . 'faq.php';
+    } elseif (get_query_var('itaiassistant101_changepw')) { 
+        return plugin_dir_path(__FILE__) . 'changepw.php';
     }
     return $template;
 }

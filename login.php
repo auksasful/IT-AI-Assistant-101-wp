@@ -85,7 +85,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 wp_redirect(home_url('/itaiassistant101/login'));
                 exit();
             }
-        } else {
+        }
+        else {
             error_log('Invalid username or password');
             echo "<script>alert('" . $lang['invalid_username_or_password'] . "')</script>";
                 
@@ -95,6 +96,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 wp_redirect(home_url('/itaiassistant101/login'));
                 exit();
             }
+        }
+    }
+    elseif (isset($_POST['change_password'])) {
+        error_log('Change password form submitted');
+        $api_key = $_POST['change_password_api_key'];
+        $api_connector = new ApiConnector($api_key);
+        $jwt_token = $api_connector->test_connection('', '', false);
+        $decoded_token = $api_connector->verify_jwt($jwt_token);
+        if ($decoded_token) {
+            $_SESSION['jwt_token'] = $jwt_token;
+            error_log('Redirecting to index');
+            $user_manager->create_temporary_password($decoded_token->data->username);
+            wp_redirect(home_url('/itaiassistant101/changepw'));
+            exit();
+        } else {
+            error_log('Redirecting to login (invalid token)');
+            wp_redirect(home_url('/itaiassistant101/login'));
+            exit();
         }
     }
 }
@@ -239,9 +258,9 @@ if (isset($_SESSION['jwt_token'])) {
         <h2><?php echo $lang['forgot_password'] ?></h2>
         <form method="POST">
             <div class="form-group required">
-                <label for="api_key"><?php echo $lang['api_key_only_teacher'] ?></label>
+                <label for="change_password_api_key"><?php echo $lang['api_key_only_teacher'] ?></label>
                 <div class="input-group" id="show_hide_change_password_api_key">
-                    <input type="text" id="api_key" name="api_key" class="form-control" required>
+                    <input type="text" id="change_password_api_key" name="change_password_api_key" class="form-control" required>
                     <div class="input-group-addon">
                         <a href=""><i class="fa fa-eye-slash" aria-hidden="true"></i></a>
                     </div>

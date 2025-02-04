@@ -202,6 +202,13 @@ class UserManager {
         return $password;
     }
 
+    function get_decrypted_temporary_password($username) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
+        $user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE user_username = %s", $username));
+        return $this->data_encryption->decrypt($user->temporary_password);
+    }
+
     // reset password for teacher, taking the username and password
     public function reset_password($username, $password) {
         global $wpdb;
@@ -217,10 +224,13 @@ class UserManager {
 
     public function update_user_api_key($username, $api_key) {
         if(!$this->is_api_key_new($api_key)){
+            error_log('API key already in use');
             return false;
         }
         $api_connector = new ApiConnector($api_key);
-        if ($api_connector->test_connection($username, 'teacher', true)) {
+        $jwt_token = $api_connector->test_connection($username, 'teacher', true);
+        if ($jwt_token) {
+            error_log('API key is valid');
             global $wpdb;
             $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
             $encrypted_api_key = $this->data_encryption->encrypt($api_key);
@@ -232,6 +242,7 @@ class UserManager {
             );
             return true;
         } else {
+            error_log('API key is invalid');
             return false;
         }
     }

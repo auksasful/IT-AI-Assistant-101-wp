@@ -199,5 +199,10 @@
         'error_exporting_tasks' => 'Error exporting tasks',
         'error_importing_tasks' => 'Error importing tasks',
         'tasks_imported_successfully' => 'Tasks imported successfully',
+        'you_have_to_change_your_password' => 'You have to change your password',
+        'reset_password' => 'Reset Password',
+        'confirm_reset_user_password' => 'Are you sure you want to reset user password?',
+        'user_password_reset' => 'User password reset',
+        'temporary_password' => 'Temporary Password',
     );
 ?>

@@ -1,6 +1,7 @@
 <?php
 require_once 'vendor/autoload.php';
 require_once 'ClassManager.php';
+require_once 'UserManager.php';
 use \Firebase\JWT\JWT;
 use \Firebase\JWT\Key;
 
@@ -55,11 +56,20 @@ class ApiConnector {
             
             curl_close($ch);
         } 
+        if ($username == '') {
+            $userManager = new UserManager();
+            $user = $userManager->get_user_by_api_key($this->api_key);
+            $username = $user->user_username;
+            $user_type = $user->user_role;
+        }
+        if ($username == '') {
+            return false;
+        }
         return $this->generate_jwt($username, $user_type);
     }
         
     private function generate_jwt($username, $user_type) {
-        error_log('Generating JWT token for ' . $username . ' (' . $user_type . ')'); // Debug statement
+        error_log(message: 'Generating JWT token for ' . $username . ' (' . $user_type . ')'); // Debug statement
         $payload = [
             'iss' => 'your_issuer', // Replace with your issuer
             'iat' => time(),

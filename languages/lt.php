@@ -202,5 +202,11 @@
         'error_exporting_tasks' => 'Klaida eksportuojant užduotis',
         'error_importing_tasks' => 'Klaida importuojant užduotis',
         'tasks_imported_successfully' => 'Užduotys importuotos sėkmingai',
+        'you_have_to_change_your_password' => 'Jūs turite pakeisti savo slaptažodį',
+        'reset_password' => 'Atstatyti slaptažodį',
+        'confirm_reset_user_password' => 'Ar tikrai norite atstatyti naudotojo slaptažodį?',
+        'user_password_reset' => 'Naudotojo slaptažodis atstatytas',
+        'error_resetting_user_password' => 'Klaida atstatant naudotojo slaptažodį',
+        'temporary_password' => 'Laikinas slaptažodis',
     );
 ?>

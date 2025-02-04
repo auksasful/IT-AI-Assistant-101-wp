@@ -37,6 +37,11 @@ if (isset($_SESSION['jwt_token'])) {
             wp_redirect(home_url('/itaiassistant101/joinclass'));
             exit();
         }
+        $temporary_password = $current_user->temporary_password;
+        if ($temporary_password != '') {
+            wp_redirect(home_url('/itaiassistant101/changepw'));
+            exit();
+        }
         $message = home_url('/itaiassistant101');
     } 
     else {
@@ -962,6 +967,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 else {
                     $users[$i]->is_teacher = false;
                 }
+                if ($users[$i]->user_role == 'student' && $users[$i]->temporary_password != '' && $users[$i]->temporary_password != null) {
+                    $temporary_password = $users[$i]->temporary_password;
+                    $decoded_temporary_password = $user_manager->get_decrypted_temporary_password($users[$i]->user_username);
+                    $users[$i]->decoded_temporary_password = $decoded_temporary_password;
+                }
+                else {
+                    $users[$i]->decoded_temporary_password = '';
+                }
             }
             // Put the teacher at the beginning of the array, the current user in the middle and the students at the end
             $teacher = null;
@@ -988,6 +1001,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $users = array_merge($users, $students);
 
             echo json_encode($users);
+        }
+        elseif($input === 'reset-user-password'){
+            $user_id = $_POST['user_id'];
+            //check if $username is class main teacher
+            $class_id = $_POST['classId'];
+            $class = $classManager->get_class_by_id($class_id);
+            if ($class->class_main_teacher != $username) {
+                echo "error";
+                return;
+            }
+            $user = $user_manager->get_user_by_username($user_id);
+            if ($user_manager->create_temporary_password($user->user_username) != '') {
+                echo "success";
+            }
+            else {
+                echo "error";
+            }
         }
         elseif($input === 'check-if-class-is-not-main-for-teacher')
         {
@@ -1039,23 +1069,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             acceptUserToClass($class_id, $user_id);
         }
         elseif($input === 'change-password') {
-            $old_password = $_POST['old_password'];
-            $new_password = $_POST['new_password'];
-            global $wpdb;
-            $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
-            $user = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE user_username = %s", $username));
-
+            $old_password = sanitize_text_field($_POST['old_password']);
+            $new_password = sanitize_text_field($_POST['new_password']);
+            $user = $user_manager->get_user_by_username($username);
+            error_log('password change attempt');
             if ($user && password_verify($old_password, $user->user_password)) {
                 $jwt_token = $api_connector->test_connection($user->user_username, $user->user_role, false);
 
                 if ($jwt_token) {
-                    $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
-                    $user_manager->update_password($username, $hashed_password);
+                    error_log('password change success');
+                    $user_manager->update_password($username, $new_password);
+                    echo "success";
                     return true;
                 } else {
+                    error_log('password change fail');
+                    echo "error";
                     return false;
                 }
             } else {
+                error_log('password change fail: NOT VERIFIED');
+                echo "error";
                 return false;
             }
         }
@@ -1251,8 +1284,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
         }       
         elseif($input === 'change-api-key') {
-            $new_api_key = $_POST['new_api_key'];
-            return $user_manager->update_user_api_key($username, $new_api_key);
+            $new_api_key = sanitize_text_field($_POST['new_api_key']);
+            error_log('setting api key to: ' . $new_api_key);
+            if ($user_manager->update_user_api_key($username, $new_api_key)){
+                echo 'success';
+            }
+            else {
+                echo 'error';
+            }
+            exit();
         }
         elseif($input === 'task-file') {
 
@@ -1863,19 +1903,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="field">
                     <label class="label"><?php echo $lang['class_user_list']; ?></label>
                     <div class="control">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th><?php echo $lang['user_username']?></th>
-                                        <th><?php echo $lang['user_name']?></th>
-                                        <th><?php echo $lang['user_surname']?></th>
-                                        <th><?php echo $lang['user_actions']?></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="class-user-list">
-                                    <!-- Add rows here dynamically using PHP or JavaScript -->
-                                </tbody>
-                            </table>
+                    <div class="table-container" style="width: 100%; min-width: 800px; overflow-x: auto;">
+                        <table class="table is-fullwidth">
+                            <thead>
+                                <tr>
+                                    <th><?php echo $lang['user_username']?></th>
+                                    <th><?php echo $lang['user_name']?></th>
+                                    <th><?php echo $lang['user_surname']?></th>
+                                    <th><?php echo $lang['temporary_password']?></th>
+                                    <th style="min-width: 200px;"><?php echo $lang['user_actions']?></th>
+                                </tr>
+                            </thead>
+                            <tbody id="class-user-list">
+                                <!-- Add rows here dynamically using PHP or JavaScript -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
@@ -2819,17 +2861,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (userItem.is_current_user) {
                         newUserItem.style.fontWeight = 'bold';
                     }
-                    const classNameElement = document.createElement('td');
-                    classNameElement.textContent = userItem.user_username;
-                    newUserItem.appendChild(classNameElement);
+                    const userUserNameElement = document.createElement('td');
+                    userUserNameElement.textContent = userItem.user_username;
+                    newUserItem.appendChild(userUserNameElement);
 
-                    const classMainTeacherElement = document.createElement('td');
-                    classMainTeacherElement.textContent = userItem.user_name;
-                    newUserItem.appendChild(classMainTeacherElement);
+                    const userNameElement = document.createElement('td');
+                    userNameElement.textContent = userItem.user_name;
+                    newUserItem.appendChild(userNameElement);
 
-                    const classCreationDateElement = document.createElement('td');
-                    classCreationDateElement.textContent = userItem.user_surname;
-                    newUserItem.appendChild(classCreationDateElement);
+                    const userSurameElement = document.createElement('td');
+                    userSurameElement.textContent = userItem.user_surname;
+                    newUserItem.appendChild(userSurameElement);
+
+                    const temporaryPasswordElement = document.createElement('td');
+                    temporaryPasswordElement.textContent = userItem.decoded_temporary_password;
+                    newUserItem.appendChild(temporaryPasswordElement);
 
                     // add table cell for actions
                     const classActionsElement = document.createElement('td');
@@ -2842,6 +2888,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             deleteUserFromClass(userItem.user_username, classId);
                         };
                         classActionsElement.appendChild(deleteButton);
+
+                        if (userItem.decoded_temporary_password === '') {
+                            const resetPasswordButton = document.createElement('button');
+                            resetPasswordButton.textContent = '<?php echo $lang['reset_password']; ?>';
+                            resetPasswordButton.classList.add('button', 'is-warning');
+                            resetPasswordButton.style.margin = '1px';
+                            resetPasswordButton.onclick = function() {
+                                resetUserPassword(userItem.user_username, classId);
+                            };
+                            classActionsElement.appendChild(resetPasswordButton);
+                        }
                     }
 
                     if (userItem.user_role === 'student' && userItem.tied_request !== '' && userItem.tied_request !== null) {
@@ -2921,6 +2978,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         })
                         .catch(error => {
                             bootbox.alert("<?php echo $lang['error_deleting_user_from_class']; ?>");
+                        });
+                    }
+                }
+            });
+        }
+
+        function resetUserPassword(userId, classId) {
+            bootbox.confirm({
+                title: "<?php echo $lang['confirm_reset_user_password']; ?>",
+                message: "<?php echo $lang['confirm_reset_user_password']; ?>",
+                buttons: {
+                    cancel: {
+                        label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
+                    },
+                    confirm: {
+                        label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
+                    }
+                },
+                callback: function (result) {
+                    if(result) {
+                        fetch('', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'message=reset-user-password&user_id=' + userId + '&classId=' + classId,
+                        })
+                        .then(response => response.text())
+                        .then(result => {
+                            if (result.includes('success')) {
+                                bootbox.alert("<?php echo $lang['user_password_reset']; ?>");
+                            } else {
+                                bootbox.alert("<?php echo $lang['error_resetting_user_password']; ?>");
+                            }
+                        })
+                        .catch(error => {
+                            bootbox.alert("<?php echo $lang['error_resetting_user_password']; ?>");
                         });
                     }
                 }
@@ -3205,18 +3299,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 label: '<i class="fa fa-check"></i> <?php echo $lang['confirm']; ?>'
                             }
                         },
-                        callback: function (result) {
-                            if(result) {
+                        callback: function (confirmed) {
+                            if(confirmed) {
                                 fetch('', {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/x-www-form-urlencoded',
                                     },
-                                    body: 'message=change-api-key&api_key=' + result,
+                                    body: 'message=change-api-key&new_api_key=' + result,
                                 })
-                                .then(response => response.json())
+                                .then(response => response.text())
                                 .then(result => {
-                                    bootbox.alert("<?php echo $lang['api_key_changed']; ?>");
+                                    if(result.includes("success")) {
+                                        bootbox.alert("<?php echo $lang['api_key_changed']; ?>");
+                                    } else {
+                                        bootbox.alert("<?php echo $lang['error_changing_api_key']; ?>");
+                                    }
                                 })
                                 .catch(error => {
                                     bootbox.alert("<?php echo $lang['error_changing_api_key']; ?>");
@@ -3268,7 +3366,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             }
                                         },
                                         callback: function (result) {
-                                            if (result && result.length > 0) {
+                                            console.log('Result:', result);
+                                            console.log('Old password:', oldPassword);
+                                            console.log('New password:', newPassword);
+                                            if (result) {
                                                 fetch('', {
                                                     method: 'POST',
                                                     headers: {
@@ -3278,7 +3379,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 })
                                                 .then(response => response.text())
                                                 .then(result => {
-                                                    bootbox.alert("<?php echo $lang['password_changed']; ?>");
+                                                    if(result.includes("success")) {
+                                                        bootbox.alert("<?php echo $lang['password_changed']; ?>");
+                                                    } else {
+                                                        bootbox.alert("<?php echo $lang['error_changing_password']; ?>");
+                                                    }
                                                 })
                                                 .catch(error => {
                                                     bootbox.alert("<?php echo $lang['error_changing_password']; ?>");
