@@ -902,16 +902,17 @@ class PdfReader
                 } else {
                     $answer = $message;
                 }
-                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
-                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $answer);
-                echo $answer;
+                // $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
 
                 for($i = 0; $i < count($urls); $i++) {
 
                     // Print the URL and similarity score
-                    echo "\n" . $urls[$i] . " " . $lang['cosine_similarity'] . " " . number_format($similarities[$i], 4);
+                    $answer .= "\n" . $urls[$i] . " " . $lang['cosine_similarity'] . " " . number_format($similarities[$i], 4);
                     // echo $lang['cosine_similarity'] . " " . number_format($similarities[$i], 4) . " ";
                 }
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $answer);
+                echo $answer;
+
 
                 return $answer;
 

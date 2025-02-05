@@ -156,7 +156,7 @@
         'import' => 'Importuoti',
         'export_tasks' => 'Eksportuoti užduotis',
         'export' => 'Eksportuoti',
-        'use_document_information' => 'Naudoti dokumento informaciją',
+        'use_document_information' => 'Naudoti šaltinius',
         'cosine_similarity' => 'Kosinusinis panašumas (Cosine similarity) ',
         'faq' => 'D.U.K.',
         'back_to_index' => 'Grįžti į pradinį puslapį',

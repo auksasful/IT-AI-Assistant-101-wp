@@ -544,4 +544,37 @@ add_action('template_redirect', function() {
         exit;
     }
 });
-?>
+
+function itaiassistant101_add_admin_menu() {
+    add_options_page(
+        'ITAI Assistant 101 Settings',
+        'ITAI Assistant 101',
+        'manage_options',
+        'itaiassistant101_settings',
+        'itaiassistant101_settings_page'
+    );
+}
+add_action('admin_menu', 'itaiassistant101_add_admin_menu');
+
+function itaiassistant101_settings_page() {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    if (!function_exists('site_url')) {
+        require_once(ABSPATH . 'wp-includes/link-template.php');
+    }
+    $iframe_src = site_url('/itaiassistant101/login/');
+    $faq_link = site_url('/itaiassistant101/faq/');
+    ?>
+    <div class="wrap">
+        <h1>ITAI Assistant 101 - Instructions</h1>
+        <p>Copy this code to embed the tool inside any page of the Wordpress site:</p>
+        <code>
+&lt;iframe src="<?php echo esc_url($iframe_src); ?>" width="100%" height="650" frameborder="0" allowfullscreen&gt;&lt;/iframe&gt;
+        </code>
+        <p>FAQ link: <a href="<?php echo esc_url($faq_link); ?>" target="_blank">View FAQ</a></p>
+        <!-- tool available at: -->
+        <p>Tool available at: <a href="<?php echo esc_url($iframe_src); ?>" target="_blank"><?php echo esc_url($iframe_src); ?></a></p>
+    </div>
+    <?php
+}

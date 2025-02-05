@@ -1311,6 +1311,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = uploadFile($_FILES['file']);
             $task_id = $_POST['task_id'];
             $class_id = $_POST['class_id'];
+            $usingExternalInfo = $_POST['usingExternalInfo'];
+            if ($usingExternalInfo == 'true') {
+                $usingExternalInfo = true;
+                error_log('Using external info set to true ' . $usingExternalInfo);
+
+            }
+            else {
+                $usingExternalInfo = false;
+
+                error_log('Using external info set to false ' . $usingExternalInfo);
+            }
             $task = $taskManager->get_task($task_id, $username);
             $user_username = $username;
             $solution_file = $result[0];
@@ -1371,9 +1382,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($studentChatHistory as $chat) {
                 $taskManager->delete_student_task_chat_history($chat->id);
             }
-            echo json_encode('Chat history cleared');
+            echo 'success';
         }
         else {
+                $usingExternalInfo = $_POST['usingExternalInfo'];
+                if ($usingExternalInfo == 'true') {
+                    $usingExternalInfo = true;
+                    error_log('Using external info set to true ' . $usingExternalInfo);
+
+                }
+                else {
+                    $usingExternalInfo = false;
+
+                    error_log('Using external info set to false ' . $usingExternalInfo);
+                }
+
                 if ($current_task->task_type == 'PDF') {
                     $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
                     $fileUri = $current_task->task_file_uri;
@@ -1439,20 +1462,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $response = $pdfReader->analyzeExcelQuestion($API_KEY, $fileUri1, $fileUri2, $input);
-                    $response = $pdfReader->analyzeUrlEmbeddingsQuestion($API_KEY, '', '', $response, "Excel", false);
-
+                    if ($usingExternalInfo) {
+                        $response = $pdfReader->analyzeUrlEmbeddingsQuestion($API_KEY, '', '', $response, "Excel", false);
+                    }
+                    else {
+                        echo $response;
+                    }
                     // echo $response;
                 }
                 elseif($current_task->task_type == 'Python') {
                     $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
                     $response = $pdfReader->analyzePythonQuestion($API_KEY, $input);
-                    $response = $pdfReader->analyzeUrlEmbeddingsQuestion($API_KEY, '', '', $response, "Python", false);
+                    if ($usingExternalInfo) {
+                        $response = $pdfReader->analyzeUrlEmbeddingsQuestion($API_KEY, '', '', $response, "Python", false);
+                    }
+                    else {
+                        echo $response;
+                    }
                     // echo $response;
                 }
                 elseif($current_task->task_type == 'Orange') {
                     $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
                     $response = $pdfReader->analyzeOrangeQuestion($API_KEY, $input);
-                    $response = $pdfReader->analyzeUrlEmbeddingsQuestion($API_KEY, $current_task->orange_data_file_uri, $current_task->orange_program_execution_result, $response, "Orange", false);
+                    if ($usingExternalInfo) {
+                        $response = $pdfReader->analyzeUrlEmbeddingsQuestion($API_KEY, $current_task->orange_data_file_uri, $current_task->orange_program_execution_result, $response, "Orange", false);
+                    }
+                    else {
+                        echo $response;
+                    }
                     return $response;
                 }
                 else {
@@ -2025,6 +2062,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         let pythonDataFileChanged = false;
         let orangeDataFileChanged = false;
 
+        let usingExternalInfo = true;
+
         function displayMessage(text, sender) {
             console.log(text, sender);
             const messageContainer = document.createElement('div');
@@ -2073,7 +2112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: 'message=' + encodeURIComponent(message),
+                body: 'message=' + encodeURIComponent(message) + '&usingExternalInfo=' + usingExternalInfo,
             })
             .then(response => response.text())
             .then(text => {
@@ -2178,6 +2217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         formData.append('message', 'done-task-file');
                         formData.append('task_id', currentTaskJson.task_id);
                         formData.append('class_id', currentTaskJson.class_id);
+                        formData.append('usingExternalInfo', usingExternalInfo);
 
 
                         displayMessage('<?php echo $lang['submitted_file']; ?>: ' + fileName, 'user');
@@ -2560,10 +2600,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         .then(response => response.text())
                         .then(result => {
                             // console.log('Chat history cleaned:', result);
+                            updateChatUI();
                             chatContainer.innerHTML = '';
                             bootbox.alert("<?php echo $lang['chat_history_cleaned']; ?>");
                             sendIntroMessage();
-                            updateChatUI();
+
                         })
                         .catch(error => {
                             console.error('An error occurred:', error);
@@ -4197,9 +4238,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function handleSwitchChange(element) {
             if (element.checked) {
                 console.log("Switch is ON");
+                usingExternalInfo = true;
                 // Add actions to perform when the switch is ON
             } else {
                 console.log("Switch is OFF");
+                usingExternalInfo = false;
                 // Add actions to perform when the switch is OFF
             }
         }
