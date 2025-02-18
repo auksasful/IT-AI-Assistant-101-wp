@@ -208,5 +208,12 @@
         'user_password_reset' => 'Naudotojo slaptažodis atstatytas',
         'error_resetting_user_password' => 'Klaida atstatant naudotojo slaptažodį',
         'temporary_password' => 'Laikinas slaptažodis',
+        'back_to_class_list' => 'Grįžti į klasių sąrašą',
+        'added_excel_file' => 'Pridėtas Excel failas',
+        'role' => 'Rolė',
+        'teacher' => 'mokytojas',
+        'student' => 'mokinys',
+        'python_data_file' => 'Python duomenų failas',
+        'orange_data_file' => 'Orange duomenų failas',
     );
 ?>

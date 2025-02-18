@@ -131,6 +131,25 @@ function joinClass($teacher_username) {
         .alert {
             margin-top: 20px;
         }
+        #bottom-task-info {
+            position: sticky;
+            bottom: 0;
+            background-color: #F9FBD3;
+            padding: 10px;
+            border-top: 1px solid #dee2e6;
+            margin-top: auto;
+            width: 100%;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            z-index: 1000;
+            text-align: left;
+            transition: background-color 0.3s ease;
+            display: inline-block;
+            text-align: center;
+        }
+        #bottom-task-info:hover {
+            background-color:rgb(220, 255, 164);
+        }
+
     </style>
 </head>
 <body>
@@ -154,6 +173,9 @@ function joinClass($teacher_username) {
     </div>
 
     <br>
+    <a id="bottom-task-info" href="<?php echo home_url('/itaiassistant101/faq'); ?>">
+        <?php echo $lang['faq']; ?>
+    </a>
     <br>
 <div class="text-center mb-3">
     <button class="button is-danger" onclick="confirmLogout()"><?php echo $lang['logout']; ?></button>

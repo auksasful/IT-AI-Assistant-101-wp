@@ -2,6 +2,7 @@
 
 require_once 'vendor/autoload.php';
 require_once 'languageconfig.php';
+require_once 'GeminiModelSwitcher.php';
 
 use Smalot\PdfParser\Parser;
 use GuzzleHttp\Client;
@@ -13,6 +14,7 @@ class PdfReader
     private $task_id;
     private $class_id;
     private $user_username;
+    private $modelSwitcher;
 
     public function __construct($task_id, $class_id, $user_username)
     {
@@ -20,6 +22,7 @@ class PdfReader
         $this->task_id = $task_id;
         $this->class_id = $class_id;
         $this->user_username = $user_username;
+        $this->modelSwitcher = new GeminiModelSwitcher();
     }
 
 
@@ -78,7 +81,7 @@ class PdfReader
     }
 
 
-    public function analyzePdf($api_key, $fileUri, $message, $system_prompt = "")
+    public function analyzePdf($api_key, $fileUri, $message, $system_prompt = "", $saveToChatHistory = true)
     {
         global $prompts;
 
@@ -108,8 +111,7 @@ class PdfReader
         ];
 
 
-        $client = new Client();
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $this->modelSwitcher->setApiKey($api_key);
         
         if (empty($system_prompt)) {
             $system_prompt = $prompts['analyze_pdf_system_prompt'];
@@ -135,18 +137,17 @@ class PdfReader
         ];
     
         try {
-            $response = $client->post($url, [
-                'headers' => ['Content-Type' => 'application/json'],
-                'json' => $jsonData,
-            ]);
+            $response = $this->modelSwitcher->makeRequest($jsonData);
     
-            $responseData = json_decode($response->getBody()->getContents(), true);
+            $responseData = json_decode($response['response'], true);
     
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 // Return only the text part
                 $text = $responseData['candidates'][0]['content']['parts'][0]['text'];
-                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
-                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $text);
+                if ($saveToChatHistory) {
+                    $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
+                    $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $text);
+                }
                 return $text;
             } else {
                 throw new Exception("Text content not found in the response");
@@ -161,7 +162,7 @@ class PdfReader
     public function analyzePdfSelfCheck($api_key, $fileUri, $message, $system_prompt)
     {
         global $prompts;
-        $file_questions = $this->analyzePdf($api_key, $fileUri, $message, $system_prompt);
+        $file_questions = $this->analyzePdf($api_key, $fileUri, $message, $system_prompt, saveToChatHistory: false);
         $schema = [
             'description' => 'List of questions and answers',
             'type' => 'object',
@@ -194,8 +195,7 @@ class PdfReader
             'required' => ['questions'],
         ];
         
-        $client = new Client();
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $this->modelSwitcher->setApiKey($api_key);
         $jsonData = [
             'systemInstruction' => [
                 'parts' => [
@@ -225,12 +225,10 @@ class PdfReader
         ];
     
         try {
-            $response = $client->post($url, [
-                'headers' => ['Content-Type' => 'application/json'],
-                'json' => $jsonData,
-            ]);
     
-            $responseData = json_decode($response->getBody()->getContents(), true);
+            $response = $this->modelSwitcher->makeRequest($jsonData);
+    
+            $responseData = json_decode($response['response'], true);
     
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 // Return only the text part
@@ -247,6 +245,7 @@ class PdfReader
     
     public function analyzeExcel($api_key, $fileUri1, $fileUri2, $message)
     {
+        global $lang;
         $taskManager = new TaskManager();
         $chatHistory = $taskManager->get_student_task_chat_history($this->task_id, $this->class_id, $this->user_username);
 
@@ -279,8 +278,7 @@ class PdfReader
 
         $system_prompt = 'Compare the first file uploaded that is students and second that is the correct solution and try to make the asker understand the problem without exposing too much information about the final solution. Talk in Lithuanian.';
 
-        $client = new Client();
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $this->modelSwitcher->setApiKey($api_key);
         $jsonData = [
             'systemInstruction' => [
                 'parts' => [
@@ -302,16 +300,15 @@ class PdfReader
         ];
     
         try {
-            $response = $client->post($url, [
-                'headers' => ['Content-Type' => 'application/json'],
-                'json' => $jsonData,
-            ]);
+            $response = $this->modelSwitcher->makeRequest($jsonData);
     
-            $responseData = json_decode($response->getBody()->getContents(), true);            
+            $responseData = json_decode($response['response'], true);
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 // Return only the text part
                 $text = $responseData['candidates'][0]['content']['parts'][0]['text'];
-                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
+                // make user's message just $lang['added_excel_file]
+                $userMessage = $lang['added_excel_file'];
+                $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $userMessage);
                 $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $text);
                 return $text;
             } else {
@@ -360,8 +357,7 @@ class PdfReader
         $system_prompt = $prompts['analyze_excel_system_prompt'];
 
 
-        $client = new Client();
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $this->modelSwitcher->setApiKey($api_key);
         $jsonData = [
             'systemInstruction' => [
                 'parts' => [
@@ -383,12 +379,11 @@ class PdfReader
         ];
     
         try {
-            $response = $client->post($url, [
-                'headers' => ['Content-Type' => 'application/json'],
-                'json' => $jsonData,
-            ]);
+            $response = $this->modelSwitcher->makeRequest($jsonData);
     
-            $responseData = json_decode($response->getBody()->getContents(), true);            
+            $responseData = json_decode($response['response'], true);
+    
+            // $responseData = json_decode($response->getBody()->getContents(), true);            
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 $text = $responseData['candidates'][0]['content']['parts'][0]['text'];
                 $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
@@ -445,8 +440,7 @@ class PdfReader
             ],
         ];
 
-        $client = new Client();
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $this->modelSwitcher->setApiKey($api_key);
         $jsonData = [
             'systemInstruction' => [
                 'parts' => [
@@ -469,12 +463,9 @@ class PdfReader
         ];
     
         try {
-            $response = $client->post($url, [
-                'headers' => ['Content-Type' => 'application/json'],
-                'json' => $jsonData,
-            ]);
+            $response = $this->modelSwitcher->makeRequest($jsonData);
     
-            $responseData = json_decode($response->getBody()->getContents(), true);            
+            $responseData = json_decode($response['response'], true);
             $text = "";
 
             if (isset($responseData['candidates'][0]['content']['parts'])) {
@@ -509,7 +500,21 @@ class PdfReader
         $taskManager = new TaskManager();
         $chatHistory = $taskManager->get_student_task_chat_history($this->task_id, $this->class_id, $this->user_username);
 
+        $taskData = $taskManager->get_task($this->task_id, $this->user_username);
+
+        // put $taskData->task_name, $taskData->task_text, $taskData->python_program_execution_result into one string variable
+        $task_text = $taskData->task_name . "\n" . $taskData->task_text . "\n" . $taskData->python_program_execution_result;
+
+
         $chatHistoryArray = [];
+        $chatHistoryArray[] = [
+            'role' => 'model',
+            'parts' => [
+                [
+                    'text' => $task_text,
+                ],
+            ],
+        ];
         foreach ($chatHistory as $chat) {
             $chatHistoryArray[] = [
                 'role' => $chat->message_role,
@@ -532,8 +537,7 @@ class PdfReader
 
         $system_prompt = $prompts['analyze_python_question_prompt'];
 
-        $client = new Client();
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $this->modelSwitcher->setApiKey($api_key);
         $jsonData = [
             'systemInstruction' => [
                 'parts' => [
@@ -555,12 +559,11 @@ class PdfReader
         ];
     
         try {
-            $response = $client->post($url, [
-                'headers' => ['Content-Type' => 'application/json'],
-                'json' => $jsonData,
-            ]);
+            $response = $this->modelSwitcher->makeRequest($jsonData);
     
-            $responseData = json_decode($response->getBody()->getContents(), true);            
+            $responseData = json_decode($response['response'], true);
+    
+            // $responseData = json_decode($response->getBody()->getContents(), true);            
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 // Return only the text part
                 $text = $responseData['candidates'][0]['content']['parts'][0]['text'];
@@ -583,8 +586,7 @@ class PdfReader
         global $prompts;
 
 
-        $client = new Client();
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $this->modelSwitcher->setApiKey($api_key);
         $jsonData = [
             'contents' => [
                 [
@@ -607,12 +609,9 @@ class PdfReader
         ];
     
         try {
-            $response = $client->post($url, [
-                'headers' => ['Content-Type' => 'application/json'],
-                'json' => $jsonData,
-            ]);
+            $response = $this->modelSwitcher->makeRequest($jsonData);
     
-            $responseData = json_decode($response->getBody()->getContents(), true);            
+            $responseData = json_decode($response['response'], true);
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 // Return only the text part
                 $message = $responseData['candidates'][0]['content']['parts'][0]['text'];
@@ -635,7 +634,19 @@ class PdfReader
         $taskManager = new TaskManager();
         $chatHistory = $taskManager->get_student_task_chat_history($this->task_id, $this->class_id, $this->user_username);
 
+        $taskData = $taskManager->get_task($this->task_id, $this->user_username);
+
+        $task_text = $taskData->task_name . "\n" . $taskData->task_text . "\n" . $taskData->python_program_execution_result;
+
         $chatHistoryArray = [];
+        $chatHistoryArray[] = [
+            'role' => 'model',
+            'parts' => [
+                [
+                    'text' => $task_text,
+                ],
+            ],
+        ];
         foreach ($chatHistory as $chat) {
             $chatHistoryArray[] = [
                 'role' => $chat->message_role,
@@ -658,8 +669,7 @@ class PdfReader
 
         $system_prompt = $prompts['analyze_orange_question_prompt'];
 
-        $client = new Client();
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $this->modelSwitcher->setApiKey($api_key);
         $jsonData = [
             'systemInstruction' => [
                 'parts' => [
@@ -681,12 +691,9 @@ class PdfReader
         ];
     
         try {
-            $response = $client->post($url, [
-                'headers' => ['Content-Type' => 'application/json'],
-                'json' => $jsonData,
-            ]);
+            $response = $this->modelSwitcher->makeRequest($jsonData);
     
-            $responseData = json_decode($response->getBody()->getContents(), true);            
+            $responseData = json_decode($response['response'], true);
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 // Return only the text part
                 $text = $responseData['candidates'][0]['content']['parts'][0]['text'];
@@ -753,8 +760,7 @@ class PdfReader
         $texts = $data['texts'];
 
 
-        $client = new Client();
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $this->modelSwitcher->setApiKey($api_key);
         $jsonData = [
             'systemInstruction' => [
                 'parts' => [
@@ -783,12 +789,9 @@ class PdfReader
         ];
     
         try {
-            $response = $client->post($url, [
-                'headers' => ['Content-Type' => 'application/json'],
-                'json' => $jsonData,
-            ]);
+            $response = $this->modelSwitcher->makeRequest($jsonData);
     
-            $responseData = json_decode($response->getBody()->getContents(), true);            
+            $responseData = json_decode($response['response'], true);
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 
                 $english_prompt = $responseData['candidates'][0]['content']['parts'][0]['text'];
@@ -891,25 +894,44 @@ class PdfReader
                     // echo "URL: {$url}\n";
                     // echo "Similarity: " . number_format($similarity, 4) . "\n";
                 }
-                
-                $tempFilePath = tempnam(sys_get_temp_dir(), 'url_texts_');
-                file_put_contents($tempFilePath, $url_texts);
 
+                // decode HTML entities first
+                $url_texts = html_entity_decode($url_texts, ENT_QUOTES, 'UTF-8');
+
+                // // make sure $url_texts texts only contains utf-8 characters. If not, remove them
+                // $url_texts = preg_replace('/[^\p{L}\p{N}\s]/u', '', $url_texts);
+                
+                $tempFilePath = tempnam(sys_get_temp_dir(), 'url_texts_') . '.txt';
+                if (file_put_contents($tempFilePath, $url_texts) === false) {
+                    throw new Exception("Failed to write temporary file");
+                }
+
+                error_log('before upload temp txt file for embeddings');
+                // read and error_log the file contents
+                error_log(file_get_contents($tempFilePath));
                 $tempFileUri = $this->uploadFileNew($api_key, $tempFilePath, 'url_texts_.txt', 'text/plain')[0];
+                error_log('after upload temp txt file for embeddings ' . $tempFileUri);
                 $system_prompt = "You must answer the question using the text and some general knowledge. Do not mention where you got the answer. Speak in Lithuanian!";
                 if ($hasQuestion) {
+                    error_log('before analyzeTxt');
+                    error_log("API Key: $api_key");
+                    error_log("Temp File URI: $tempFileUri");
+                    error_log("English Prompt: $english_prompt");
+                    error_log("System Prompt: $system_prompt");
                     $answer = $this->analyzeTxt($api_key, $tempFileUri, $english_prompt , $system_prompt);
                 } else {
                     $answer = $message;
                 }
                 // $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
 
+                $answer .= "\n<table class='table is-fullwidth'>";
                 for($i = 0; $i < count($urls); $i++) {
 
                     // Print the URL and similarity score
-                    $answer .= "\n" . $urls[$i] . " " . $lang['cosine_similarity'] . " " . number_format($similarities[$i], 4);
+                    $answer .= "<tr><td> " . $urls[$i] . " </td><td> " . $lang['cosine_similarity'] . " " . number_format($similarities[$i], 4) . " </td></tr>";
                     // echo $lang['cosine_similarity'] . " " . number_format($similarities[$i], 4) . " ";
                 }
+                $answer .= "</table>";
                 $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $answer);
                 echo $answer;
 
@@ -985,8 +1007,7 @@ class PdfReader
     public function analyzeTxt($api_key, $fileUri, $message, $system_prompt = "")
     {
         global $prompts;
-        $client = new Client();
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$api_key}";
+        $this->modelSwitcher->setApiKey($api_key);
 
         // if (empty($system_prompt)) {
         //     $system_prompt = $prompts['analyze_txt_system_prompt'];
@@ -1020,13 +1041,11 @@ class PdfReader
         ];
 
         try {
-            $response = $client->post($url, [
-                'headers' => ['Content-Type' => 'application/json'],
-                'json' => $jsonData,
-            ]);
-
-            $responseData = json_decode($response->getBody()->getContents(), true);
-
+            error_log("Sending image text analyze request to Gemini API");
+            $response = $this->modelSwitcher->makeRequest($jsonData);
+    
+            $responseData = json_decode($response['response'], true);
+            error_log("Response data: " . json_encode($responseData));
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 // Return only the text part
                 return $responseData['candidates'][0]['content']['parts'][0]['text'];

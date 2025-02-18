@@ -204,5 +204,12 @@
         'confirm_reset_user_password' => 'Are you sure you want to reset user password?',
         'user_password_reset' => 'User password reset',
         'temporary_password' => 'Temporary Password',
+        'back_to_class_list' => 'Back to class list',
+        'added_excel_file' => 'Added Excel file',
+        'role' => 'Role',
+        'teacher' => 'Teacher',
+        'student' => 'Student',
+        'python_data_file' => 'Python data file',
+        'orange_data_file' => 'Orange data file',
     );
 ?>

@@ -1,4 +1,7 @@
 <?php
+
+require_once 'languageconfig.php';
+
 /*
  * FAQ Page
  */
@@ -69,8 +72,8 @@
 <body>
     <div class="container">
         <div class="content">
-            <a href="<?php echo home_url('/itaiassistant101/index'); ?>">
-                <?php echo $lang['back_to_index']; ?>
+            <a href="<?php echo get_site_url(null, '/itaiassistant101/index'); ?>" class="btn btn-primary" style="margin-bottom: 20px;">
+                <?php echo isset($lang['back_to_index']) ? $lang['back_to_index'] : 'Back to Index'; ?>
             </a>
             <div id="accordion" class="panel-group" role="tablist" aria-multiselectable="true">
                 <div class="panel panel-default">
@@ -83,7 +86,7 @@
                             </a>
                         </h4>
                     </div>
-                    <div id="collapseOne" class="panel-collapse collapse in" role="tabpanel" aria-labelledby="headingOne">
+                    <div id="collapseOne" class="panel-collapse collapse" role="tabpanel" aria-labelledby="headingOne">
                         <div class="panel-body">
                             <p>
                                 1. Prisijunkite prie Google paskyros <br>

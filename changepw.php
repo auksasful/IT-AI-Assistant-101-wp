@@ -56,6 +56,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootbox.js/6.0.0/bootbox.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        #bottom-task-info {
+            position: sticky;
+            bottom: 0;
+            background-color: #F9FBD3;
+            padding: 10px;
+            border-top: 1px solid #dee2e6;
+            margin-top: auto;
+            width: 100%;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            z-index: 1000;
+            text-align: left;
+            transition: background-color 0.3s ease;
+            display: inline-block;
+            text-align: center;
+        }
+        #bottom-task-info:hover {
+            background-color:rgb(220, 255, 164);
+        }
+        .fa.fa-eye-slash {
+            padding-top: 0.7rem;
+            padding-left: 0.3rem;
+        }
+        .fa.fa-eye {
+            padding-top: 0.7rem;
+            padding-left: 0.3rem;
+        }
+    </style>
 </head>
 <body>
 <div class="container" style="max-width: 500px; margin-top: 50px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
@@ -64,7 +92,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <form method="POST">
         <div class="form-group">
             <label for="new_password"><?php echo $lang['enter_new_password'] ?></label>
-            <input type="password" class="form-control" id="new_password" name="new_password" required>
+            <div class="input-group" id="show_hide_password">
+                <input type="password" class="form-control" id="new_password" name="new_password" required>
+                <div class="input-group-addon">
+                    <a href=""><i class="fa fa-eye-slash" aria-hidden="true"></i></a>
+                </div>
+            </div>
         </div>
         <button type="submit" class="btn btn-primary"><?php echo $lang['change'] ?></button>
     </form>
@@ -74,6 +107,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="text-center mb-3">
         <button class="button is-danger" onclick="confirmLogout()"><?php echo $lang['logout']; ?></button>
     </div>
+    <br>
+    <a id="bottom-task-info" href="<?php echo home_url('/itaiassistant101/faq'); ?>">
+        <?php echo $lang['faq']; ?>
+    </a>
+    <br>
     <div class="text-center">
         <a href="login.php?lang=en"><?php echo $lang['lang_en'] ?></a>
         | <a href="login.php?lang=lt"><?php echo $lang['lang_lt'] ?></a>
@@ -108,6 +146,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         });
     }
+
+
+    $("#show_hide_password a").on('click', function(event) {
+        event.preventDefault();
+        if($('#show_hide_password input').attr("type") == "text"){
+            $('#show_hide_password input').attr('type', 'password');
+            $('#show_hide_password i').addClass( "fa-eye-slash" );
+            $('#show_hide_password i').removeClass( "fa-eye" );
+        }else if($('#show_hide_password input').attr("type") == "password"){
+            $('#show_hide_password input').attr('type', 'text');
+            $('#show_hide_password i').removeClass( "fa-eye-slash" );
+            $('#show_hide_password i').addClass( "fa-eye" );
+        }
+    });
 
 </script>
 

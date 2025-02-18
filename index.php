@@ -411,7 +411,7 @@ function uploadFile($fileParam, $phpCall = false) {
                 }
                 elseif (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'bmp'])) {
                     $result = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.$fileExtension", "image/$fileExtension");
-                    error_log("uploadFile: Image file upload result: " . print_r($result, true));
+                    error_log(message: "uploadFile: Image file upload result: " . print_r($result, true));
                     return [$filePath, $result[0], $result[1]];
                 }
                 error_log("uploadFile: No special handling needed for $filePath");
@@ -545,12 +545,12 @@ function get_example_questions_from_pdf() {
 }
 
 
-function call_embedded_ocr_pdf($message, $fileUri = '') { 
+function call_embedded_ocr_pdf($message, $fileUri = '', $saveToChatHistory = true) { 
     global $API_KEY;
     global $current_task;
     global $username;
     $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
-    echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message);
+    echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message, saveToChatHistory: $saveToChatHistory);
     return true;
 }
 
@@ -559,7 +559,7 @@ function call_embedded_ocr_excel($message, $fileUri = '') {
     global $current_task;
     global $username;
     $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
-    echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message);
+    echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message, saveToChatHistory: true);
     return true;
 }
 
@@ -640,6 +640,10 @@ function deleteFile($filePath) {
     }
     if (file_exists($filePath)) {
         unlink($filePath);
+        echo 'success';
+    }
+    else {
+        echo 'file not found';
     }
 }
 
@@ -779,13 +783,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($current_task->task_id != null) {
                 sendModelMessage(" **{$lang["task_name"]}:**<br>{$current_task->task_name}<br>");
                 sendModelMessage(" **{$lang["task_text"]}:**<br>{$current_task->task_text}<br>");
+                if ($current_task->task_type == 'Python') {
+                    sendModelMessage(" **{$lang["correct_program_execution_result"]}:**<br>" . $current_task->python_program_execution_result . "<br>");
+                    sendModelMessage(" **{$lang["python_data_file"]}:**<br>" . convert_path_to_url($current_task->python_data_file));
+                }
+                elseif ($current_task->task_type == 'Orange') {
+                    sendModelMessage(" **{$lang["correct_program_execution_result"]}:**<br>" . $current_task->orange_program_execution_result . "<br>");
+                    sendModelMessage(" **{$lang["orange_data_file"]}:**<br>" . convert_path_to_url($current_task->orange_data_file));
+                }
                 sendModelMessage(" **{$lang["task_file"]}:**<br>" . convert_path_to_url($current_task->task_file_clean));
                 if ($current_task->task_type == 'PDF') {
                     sendModelMessage(" **{$lang["task_summary"]}:**<br>{$current_task->default_summary}<br>");
                 }
             }
             else {
-                sendModelMessage('No task selected');
+                sendModelMessage($lang["no_task_selected"]);
             }
         }
         elseif ($input === 'task-summary') {
@@ -797,7 +809,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             { 
                 error_log("File does not exist."); 
             }
-            call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language', $fileUri);
+            call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language', $fileUri, false);
         }
         elseif($input === 'task-questions') {
             $fileUri = urldecode($_POST['fileUri']);
@@ -903,6 +915,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $fileName = $_POST['file-name'];
             $filePath = WP_CONTENT_DIR . "/ITAIAssistant101/" . $username . "/TASK/" . $fileName;
             deleteFile($filePath);
+        }
+        elseif($input === 'delete-task-files-on-close') {
+            $currentTaskFilePath = $_POST['current-task-file-path'];
+            $currentCorrectTaskFilePath = $_POST['current-correct-task-file-path'];
+            $currentPythonDataFilePath = $_POST['current-python-data-file-path'];
+            $currentOrangeDataFilePath = $_POST['current-orange-data-file-path'];
+            $classId = $_POST['class-id'];
+
+            // error log all the file paths
+            // error_log('currentTaskFilePath: ' . $currentTaskFilePath);
+            // error_log('currentCorrectTaskFilePath: ' . $currentCorrectTaskFilePath);
+            // error_log('currentPythonDataFilePath: ' . $currentPythonDataFilePath);
+            // error_log('currentOrangeDataFilePath: ' . $currentOrangeDataFilePath);
+
+            // check if user is the main teacher of the class
+            $class = $classManager->get_class_by_id($classId);
+            if ($class->class_main_teacher != $username) {
+                echo "error";
+                exit();
+            }
+            
+            deleteFile($currentTaskFilePath);
+            deleteFile($currentCorrectTaskFilePath);
+            deleteFile($currentPythonDataFilePath);
+            deleteFile($currentOrangeDataFilePath);
+
         }
         elseif($input === 'delete-task') {
             $taskId = $_POST['task-id'];
@@ -1369,7 +1407,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode($current_task);
             }
             else {
-                echo json_encode('No task selected');
+                echo json_encode($lang["no_task_selected"]);
             }
         }
         elseif($input === 'current-class-id') {
@@ -1419,17 +1457,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $fileUri2 = $current_task->clean_task_file_uri;
                     if($using_student_solution) {
                         $student_solutionFileUri = $student_solution->solution_file_uri;
-                        if (!$pdfReader->fileExists($API_KEY, $student_solutionFileUri)) {
-                            $filePath  = $student_solution->solution_file;
-                            $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
-                            $fileName = pathinfo($filePath, PATHINFO_FILENAME);
-                            $excel_reader = new ExcelReader($filePath);
-                            $excel_data = $excel_reader->readDataWithCoordinates();
-                            // move excel_data to text file with the same name to the same path but the extension is .txt
-                            $textFilePath = str_replace($fileExtension, 'txt', $filePath);
-                            $student_solutionFileUri = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain')[0];
-                            $taskManager->update_student_task_solution($student_solution->solution_id, $current_task->task_id, $current_task->class_id, $student_solution->user_username, $student_solution->solution_file, $student_solutionFileUri);
-                        }
+                        // if (!$pdfReader->fileExists($API_KEY, $student_solutionFileUri)) {
+                        $filePath  = $student_solution->solution_file;
+                        $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
+                        $fileName = pathinfo($filePath, PATHINFO_FILENAME);
+                        $excel_reader = new ExcelReader($filePath);
+                        $excel_data = $excel_reader->readDataWithCoordinates();
+                        // move excel_data to text file with the same name to the same path but the extension is .txt
+                        $textFilePath = str_replace($fileExtension, 'txt', $filePath);
+                        $student_solutionFileUri = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain')[0];
+                        $taskManager->update_student_task_solution($student_solution->solution_id, $current_task->task_id, $current_task->class_id, $student_solution->user_username, $student_solution->solution_file, $student_solutionFileUri);
+                        // }
                     }
                     else {
                         if (!$pdfReader->fileExists($API_KEY, $fileUri1)) {
@@ -1631,7 +1669,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: white;
         }
         .custom-file-label {
-            word-wrap: break-word;
             width: 100%;
         }
 
@@ -1693,17 +1730,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             display: none;
         }
 
+        .remove-file-button {
+            margin-top: 0.2rem;
+        }
+
+        .custom-file-label {
+            overflow: hidden;
+        }
+
     </style>
 </head>
 <body>
     <section class="section">
         <div class="left-panel">
+            <div class="top-user-info" style="font-size: 0.8em; text-align: center; padding: 0.5em; display: flex; flex-direction: column;">
+                <span><b><?php echo $lang['username']; ?>:</b> <?php echo $username; ?></span>
+                <span><b><?php echo $lang['role']; ?>:</b> <?php echo ($current_user->user_role == 'teacher') ? $lang['teacher'] : $lang['student']; ?></span>
+            </div>
             <div class="top-left-buttons">
                 <button class="button is-link" id="openClassModalButton" onclick="openClassModal()">
                     <?php echo $lang['select_class']; ?> 
                      <span class="badge badge-light" id="classNotificationBadge" style="display: none;"> 0</span>
                 </button>
-                <button class="button is-primary" onclick="addTask()"><?php echo $lang['add_task']; ?></button>
+                <button class="button is-primary teachers-buttons" style="display: none;" onclick="addTask()"><?php echo $lang['add_task']; ?></button>
             </div>
             <div class="task-list"></div>
             <a id="bottom-task-info" href="<?php echo home_url('/itaiassistant101/faq'); ?>">
@@ -1736,12 +1785,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div id="loader">
                 <progress class="progress is-small is-primary" max="100"></progress>
             </div>
-            <button class="button is-warning float-right" onclick="cleanHistory()"><?php echo $lang['clean_chat_history'] ?></button>
+            <button class="button is-warning float-right" onclick="cleanHistory()" id="cleanHistory" disabled><?php echo $lang['clean_chat_history'] ?></button>
             <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" role="switch" name="use_document_information" id="useDocumentInformation" value="1" checked onchange="handleSwitchChange(this)">
-                <label class="form-check-label" for="useDocumentInformation">
-                    <?php echo $lang['use_document_information']; ?>
-                </label>
+                <div id="useDocumentInformationDiv">
+                    <input class="form-check-input" type="checkbox" role="switch" name="use_document_information" id="useDocumentInformation" disabled value="1" checked onchange="handleSwitchChange(this)">
+                    <label class="form-check-label" for="useDocumentInformation">
+                        <?php echo $lang['use_document_information']; ?>
+                    </label>
+                </div>
             </div>
             <br>
             <div class="text-center">
@@ -1859,14 +1910,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="pdf-field">
                     <div class="field">
                         <label class="label"><?php echo $lang['task_summary']; ?></label>
-                        <button class="button" onclick="writeTaskSummary()"><?php echo $lang['write_summary_with_ai']; ?></button>
+                        <button class="button" style="margin: 0.2rem;" onclick="writeTaskSummary()"><?php echo $lang['write_summary_with_ai']; ?></button>
                         <div class="control">
                             <textarea class="textarea" id="taskSummary" placeholder="Enter task summary"></textarea>
                         </div>
                     </div>
                     <div class="field">
                         <label class="label"><?php echo $lang['task_self_check_questions']; ?></label>
-                        <button class="button" onclick="writeTaskQuestions()"><?php echo $lang['write_questions_with_ai']; ?></button>
+                        <button class="button" style="margin: 0.2rem;" onclick="writeTaskQuestions()"><?php echo $lang['write_questions_with_ai']; ?></button>
                         <div class="control">
                             <textarea class="textarea" id="taskQuestions" style="display:none" placeholder="<?php echo $lang['enter_task_self_check_questions']; ?>"></textarea>
                         </div>
@@ -1923,7 +1974,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </section>
                 <footer class="modal-card-foot">
                     <button class="button" onclick="closeClassModal()"><?php echo $lang['close']; ?></button>
-                    <button class="button is-primary" onclick="addNewClass()"><?php echo $lang['add_new_class']; ?></button>
+                    <button class="button is-primary teachers-buttons" style="display: none;" onclick="addNewClass()"><?php echo $lang['add_new_class']; ?></button>
                 </footer>
             </div>
         </div>
@@ -1931,7 +1982,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- User List Modal -->
     <div class="modal" id="userListModal">
         <div class="modal-background"></div>
-        <div class="modal-card">
+        <div class="modal-card" style="width: -webkit-fill-available;">
             <header class="modal-card-head">
                 <p class="modal-card-title"><?php echo $lang['class_user_list']; ?></p>
                 <button class="delete" aria-label="close" onclick="closeUserListModal()"></button>
@@ -1947,8 +1998,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <th><?php echo $lang['user_username']?></th>
                                     <th><?php echo $lang['user_name']?></th>
                                     <th><?php echo $lang['user_surname']?></th>
+                                    <th><?php echo $lang['role']?></th>
+                                    <?php if ($current_user->user_role === 'teacher') { ?>
                                     <th><?php echo $lang['temporary_password']?></th>
                                     <th style="min-width: 200px;"><?php echo $lang['user_actions']?></th>
+                                    <?php } ?>
                                 </tr>
                             </thead>
                             <tbody id="class-user-list">
@@ -1959,8 +2013,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </section>
             <footer class="modal-card-foot">
-                <button class="button is-primary" id="openAddUsersModal"><?php echo $lang['add_users']; ?></button>
+                <button class="button is-primary teachers-buttons" style="display: none;" id="openAddUsersModal"><?php echo $lang['add_users']; ?></button>
                 <button class="button" onclick="closeUserListModal()"><?php echo $lang['close']; ?></button>
+                <button class="button is-secondary" onclick="backToClassList()"><?php echo $lang['back_to_class_list']; ?></button>
             </footer>
         </div>
     </div>
@@ -1977,7 +2032,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="columns">
                     <div class="column">
                         <!-- change api_key button -->
-                        <div class="field">
+                        <div class="field teachers-buttons" style="display: none;">
                             <label class="label"><?php echo $lang['change_api_key']; ?></label>
                             <div class="control">
                                 <button class="button is-primary" onclick="changeApiKey()"><?php echo $lang['change']; ?></button>
@@ -1992,7 +2047,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
                     </div>
-                    <div class="column">
+                    <div class="column teachers-buttons" style="display: none;">
                         <!-- import tasks button -->
                         <div class="field">
                             <label class="label"><?php echo $lang['import_tasks'] ?></label>
@@ -2063,6 +2118,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         let orangeDataFileChanged = false;
 
         let usingExternalInfo = true;
+
+        let questionsGlobal = [];
 
         function displayMessage(text, sender) {
             console.log(text, sender);
@@ -2190,9 +2247,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .then(response => response.text())
             .then(text => {
                 document.getElementById('taskQuestions').value = text;
-                const questions = JSON.parse(text).questions;
+                console.log("before AI generating: ")
+                for (let i = 0; i < questionsGlobal.length; i++) {
+                    console.log(questionsGlobal[i].question);
+                }
+                questionsGlobal = questionsGlobal.concat(JSON.parse(text).questions);
+                console.log("after AI generating: " + questionsGlobal)
+                for (let i = 0; i < questionsGlobal.length; i++) {
+                    console.log(questionsGlobal[i].question);
+                }
+                // const questions = JSON.parse(text).questions;
                 const taskQuestionsElement = document.getElementById('taskQuestions');
-                createSelfCheckAccordion(questions, taskQuestionsElement);
+                createSelfCheckAccordion(questionsGlobal, taskQuestionsElement);
                 hideLoadingModal();
             })
             .catch(error => {
@@ -2318,6 +2384,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 bootbox.alert("<?php echo $lang['no_file_selected']; ?>");
             }
+            document.getElementById('fileInput').value = ''; // Clear the input field
+            toggleLoadTaskTypeFields();
         }
 
         function validateFileType() {
@@ -2618,6 +2686,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             userInput.disabled = false;
             document.getElementById('fileInput').disabled = false;
             document.getElementById('sendMessageButton').disabled = false;
+            document.getElementById('cleanHistory').disabled = false;
+            document.getElementById('useDocumentInformation').disabled = false;
             toggleTaskTypeFields();
         }
 
@@ -2672,106 +2742,109 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     newTaskItem.appendChild(icon);
                     newTaskItem.appendChild(textContent);
                     // Create three-dot menu
-                    const menuWrapper = document.createElement('div');
-                    menuWrapper.style.float = 'right';
-                    menuWrapper.style.marginRight = '0.5em';
-                    menuWrapper.style.position = 'relative';
-                    menuWrapper.style.clear = 'right';
+                    <?php if ($current_user->user_role === 'teacher') { ?>
+                        const menuWrapper = document.createElement('div');
+                        menuWrapper.classList.add('teachers-buttons');
+                        menuWrapper.style.float = 'right';
+                        menuWrapper.style.marginRight = '0.5em';
+                        menuWrapper.style.position = 'relative';
+                        menuWrapper.style.clear = 'right';
 
-                    const threeDots = document.createElement('i');
-                    threeDots.classList.add('fas', 'fa-ellipsis-v');
-                    threeDots.style.cursor = 'pointer';
-                    threeDots.style.fontSize = '1.2em';
-                    threeDots.addEventListener('mouseover', function() {
-                        threeDots.style.color = 'gray';
-                    });
-                    threeDots.addEventListener('mouseout', function() {
-                        threeDots.style.color = '';
-                    });
+                        const threeDots = document.createElement('i');
+                        threeDots.classList.add('fas', 'fa-ellipsis-v');
+                        threeDots.style.cursor = 'pointer';
+                        threeDots.style.fontSize = '1.2em';
+                        threeDots.addEventListener('mouseover', function() {
+                            threeDots.style.color = 'gray';
+                        });
+                        threeDots.addEventListener('mouseout', function() {
+                            threeDots.style.color = '';
+                        });
 
-                    const dropdownMenu = document.createElement('div');
-                    dropdownMenu.style.display = 'none';
-                    dropdownMenu.style.position = 'absolute';
-                    dropdownMenu.style.right = '0';
-                    dropdownMenu.style.backgroundColor = '#fff';
-                    dropdownMenu.style.border = '1px solid #ccc';
-                    dropdownMenu.style.padding = '0.5em';
-                    dropdownMenu.style.minWidth = '150px';
-
-                    const editOption = document.createElement('div');
-                    editOption.textContent = 'Edit';
-                    editOption.style.cursor = 'pointer';
-                    editOption.addEventListener('mouseover', function() {
-                        editOption.style.backgroundColor = '#eee';
-                    });
-                    editOption.addEventListener('mouseout', function() {
-                        editOption.style.backgroundColor = '';
-                    });
-                    editOption.onclick = function(e) {
-                        e.stopPropagation();
-                        editTask(task.task_id);
+                        const dropdownMenu = document.createElement('div');
                         dropdownMenu.style.display = 'none';
-                    };
-                    dropdownMenu.appendChild(editOption);
+                        dropdownMenu.style.position = 'absolute';
+                        dropdownMenu.style.right = '0';
+                        dropdownMenu.style.backgroundColor = '#fff';
+                        dropdownMenu.style.border = '1px solid #ccc';
+                        dropdownMenu.style.padding = '0.5em';
+                        dropdownMenu.style.minWidth = '150px';
 
-                    const deleteOption = document.createElement('div');
-                    deleteOption.textContent = 'Delete';
-                    deleteOption.style.cursor = 'pointer';
-                    deleteOption.addEventListener('mouseover', function() {
-                        deleteOption.style.backgroundColor = '#eee';
-                    });
-                    deleteOption.addEventListener('mouseout', function() {
-                        deleteOption.style.backgroundColor = '';
-                    });
-                    deleteOption.onclick = function(e) {
-                        e.stopPropagation();
-                        deleteTask(task.task_id);
-                        dropdownMenu.style.display = 'none';
-                    };
-                    dropdownMenu.appendChild(deleteOption);
-
-                    threeDots.onclick = function(e) {
-                        e.stopPropagation();
-                        dropdownMenu.style.display = (dropdownMenu.style.display === 'none') ? 'block' : 'none';
-                    };
-
-                    document.addEventListener('click', function(evt) {
-                        if (!menuWrapper.contains(evt.target)) {
+                        const editOption = document.createElement('div');
+                        editOption.textContent = 'Edit';
+                        editOption.style.cursor = 'pointer';
+                        editOption.addEventListener('mouseover', function() {
+                            editOption.style.backgroundColor = '#eee';
+                        });
+                        editOption.addEventListener('mouseout', function() {
+                            editOption.style.backgroundColor = '';
+                        });
+                        editOption.onclick = function(e) {
+                            e.stopPropagation();
+                            editTask(task.task_id);
                             dropdownMenu.style.display = 'none';
-                        }
-                    });
-                    threeDots.onclick = function(e) {
-                        e.stopPropagation();
-                        bootbox.dialog({
-                            title: `<?php echo $lang['task_']?>#${task.task_id}<?php echo $lang['_information']; ?>`,
-                            message: `<p><?php echo $lang['name_']?>${task.task_name}</p><p><?php echo $lang['type_']; ?>${task.task_type}</p>`,
-                            size: 'large',
-                            buttons: {
-                                cancel: {
-                                    label: '<?php echo $lang['cancel']; ?>',
-                                    className: 'btn-secondary'
-                                },
-                                edit: {
-                                    label: '<?php echo $lang['edit']; ?>',
-                                    className: 'btn-primary',
-                                    callback: function() {
-                                        editTask(task.task_id);
-                                    }
-                                },
-                                delete: {
-                                    label: '<?php echo $lang['delete']; ?>',
-                                    className: 'btn-danger',
-                                    callback: function() {
-                                        deleteTask(task.task_id);
-                                    }
-                                }
+                        };
+                        dropdownMenu.appendChild(editOption);
+
+                        const deleteOption = document.createElement('div');
+                        deleteOption.textContent = 'Delete';
+                        deleteOption.style.cursor = 'pointer';
+                        deleteOption.addEventListener('mouseover', function() {
+                            deleteOption.style.backgroundColor = '#eee';
+                        });
+                        deleteOption.addEventListener('mouseout', function() {
+                            deleteOption.style.backgroundColor = '';
+                        });
+                        deleteOption.onclick = function(e) {
+                            e.stopPropagation();
+                            deleteTask(task.task_id);
+                            dropdownMenu.style.display = 'none';
+                        };
+                        dropdownMenu.appendChild(deleteOption);
+
+                        threeDots.onclick = function(e) {
+                            e.stopPropagation();
+                            dropdownMenu.style.display = (dropdownMenu.style.display === 'none') ? 'block' : 'none';
+                        };
+
+                        document.addEventListener('click', function(evt) {
+                            if (!menuWrapper.contains(evt.target)) {
+                                dropdownMenu.style.display = 'none';
                             }
                         });
-                    };
+                        threeDots.onclick = function(e) {
+                            e.stopPropagation();
+                            bootbox.dialog({
+                                title: `<?php echo $lang['task_']?>#${task.task_id}<?php echo $lang['_information']; ?>`,
+                                message: `<p><?php echo $lang['name_']?>${task.task_name}</p><p><?php echo $lang['type_']; ?>${task.task_type}</p>`,
+                                size: 'large',
+                                buttons: {
+                                    cancel: {
+                                        label: '<?php echo $lang['cancel']; ?>',
+                                        className: 'btn-secondary'
+                                    },
+                                    edit: {
+                                        label: '<?php echo $lang['edit']; ?>',
+                                        className: 'btn-primary teachers-buttons',
+                                        callback: function() {
+                                            editTask(task.task_id);
+                                        }
+                                    },
+                                    delete: {
+                                        label: '<?php echo $lang['delete']; ?>',
+                                        className: 'btn-danger teachers-buttons',
+                                        callback: function() {
+                                            deleteTask(task.task_id);
+                                        }
+                                    }
+                                }
+                            });
+                        };
 
-                    menuWrapper.appendChild(threeDots);
-                    menuWrapper.appendChild(dropdownMenu);
-                    newTaskItem.appendChild(menuWrapper);
+                        menuWrapper.appendChild(threeDots);
+                        menuWrapper.appendChild(dropdownMenu);
+                        newTaskItem.appendChild(menuWrapper);
+                    <?php } ?> 
                     newTaskItem.onclick = function() {
                         reloadWithTaskId(task.task_id);
                     };
@@ -2835,9 +2908,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     };
                     
+                    const classActionsElement = document.createElement('td');
+
                     // add table cell for actions
                     if (classItem.use_actions) {
-                        const classActionsElement = document.createElement('td');
                         classActionsElement.style.display = 'flex';
                         classActionsElement.style.gap = '4px';
 
@@ -2858,20 +2932,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             editClass(classItem.class_id, classItem.class_name);
                         };
                         classActionsElement.appendChild(editButton);
-
-                        // Only show select button if not last used
-                        if (!classItem.is_last_used) {
-                            const selectButton = document.createElement('button');
-                            selectButton.textContent = '<?php echo $lang['select']; ?>';
-                            selectButton.classList.add('button', 'is-primary', 'is-small');
-                            selectButton.onclick = function() {
-                                selectClassWithReload(classItem.class_id);
-                            };
-                            classActionsElement.appendChild(selectButton);
-                        }
-
-                        newClassItem.appendChild(classActionsElement);
                     }
+                    // Only show select button if not last used
+                    if (!classItem.is_last_used) {
+                        const selectButton = document.createElement('button');
+                        selectButton.textContent = '<?php echo $lang['select']; ?>';
+                        selectButton.classList.add('button', 'is-primary', 'is-small');
+                        selectButton.onclick = function() {
+                            selectClassWithReload(classItem.class_id);
+                        };
+                        classActionsElement.appendChild(selectButton);
+                    }
+
+                    newClassItem.appendChild(classActionsElement);
                     classList.appendChild(newClassItem);
                 });
                 getTiedRequestsCount();
@@ -2913,6 +2986,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     const userSurameElement = document.createElement('td');
                     userSurameElement.textContent = userItem.user_surname;
                     newUserItem.appendChild(userSurameElement);
+
+                    const userRoleElement = document.createElement('td');
+                    if (userItem.user_role === 'teacher') {
+                        userRoleElement.textContent = '<?php echo $lang['teacher']; ?>';
+                    } else {
+                        userRoleElement.textContent = '<?php echo $lang['student']; ?>';
+                    }
+                    newUserItem.appendChild(userRoleElement);
 
                     const temporaryPasswordElement = document.createElement('td');
                     temporaryPasswordElement.textContent = userItem.decoded_temporary_password;
@@ -3050,6 +3131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         .then(result => {
                             if (result.includes('success')) {
                                 bootbox.alert("<?php echo $lang['user_password_reset']; ?>");
+                                getClassUserList(classId);
                             } else {
                                 bootbox.alert("<?php echo $lang['error_resetting_user_password']; ?>");
                             }
@@ -3105,6 +3187,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             cleanTasksCRUDFields();
             toggleTaskTypeFields();
             document.getElementById('addTaskModal').classList.add('is-active');
+            document.getElementById('taskType').disabled = false;
+            createSelfCheckAccordion([], document.getElementById('taskQuestions'));
         }
 
         function cleanTasksCRUDFields()
@@ -3152,8 +3236,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if(task.task_type === 'PDF') {
                 const taskQuestionsElement = document.getElementById('taskQuestions');
-                const questions = JSON.parse(task.default_self_check_questions).questions;
-                createSelfCheckAccordion(questions, taskQuestionsElement);
+                questionsGlobal = questionsGlobal.concat(JSON.parse(task.default_self_check_questions).questions);
+                createSelfCheckAccordion(questionsGlobal, taskQuestionsElement);
+                currentTaskFileUri = task.task_file_uri;
             }
 
             if (task.task_type === 'Excel') {
@@ -3211,6 +3296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             taskState = 'Edit';
 
             document.getElementById('addTaskModal').classList.add('is-active');
+            document.getElementById('taskType').disabled = true;
         }
 
         function deleteTask(taskId) {
@@ -3250,8 +3336,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function removeTaskFile(fieldType) {
-            bootbox.prompt({
+            bootbox.confirm({
                 title: "<?php echo $lang['confirm_remove_file']; ?>",
+                message: "<?php echo $lang['confirm_remove_file']; ?>",
                 buttons: {
                     cancel: {
                         label: '<i class="fa fa-times"></i> <?php echo $lang['cancel']; ?>'
@@ -3261,49 +3348,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 },
                 callback: function (result) {
+                    console.log('remove file result: ' + result);
                     if (result) {
-                        switch (fieldType) {
-                            case 'regular':
-                                fileName = document.getElementById('taskFile').nextElementSibling.innerText
-                            case 'correct-excel':
-                                fileName = document.getElementById('correctTaskFile').nextElementSibling.innerText
-                            case 'data-python':
-                                fileName = document.getElementById('correctPythonDataFile').nextElementSibling.innerText
-                            case 'data-orange':
-                                fileName = document.getElementById('correctOrangeDataFile').nextElementSibling.innerText
-                            default:
-                                break;
+                        console.log('passed fieldtype: ' + fieldType);
+                        var selectedFileName = '';
+                        if (fieldType === 'regular') {
+                            selectedFileName = document.getElementById('taskFile').nextElementSibling.innerText;
+                        } else if (fieldType === 'correct-excel') {
+                            selectedFileName = document.getElementById('correctTaskFile').nextElementSibling.innerText;
+                        } else if (fieldType === 'data-python') {
+                            selectedFileName = document.getElementById('correctPythonDataFile').nextElementSibling.innerText;
+                        } else if (fieldType === 'data-orange') {
+                            selectedFileName = document.getElementById('correctOrangeDataFile').nextElementSibling.innerText;
                         }
-                        // TODO: implement real removal of files
+                        console.log('delete file: ' + selectedFileName);
+                        console.log('parsed file: ' + document.getElementById('correctPythonDataFile').nextElementSibling.innerText)
                         fetch('', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/x-www-form-urlencoded',
                             },
-                            body: 'message=remove-task-file&file-name=' + fileName,
+                            body: 'message=remove-task-file&file-name=' + selectedFileName,
                         })
-                        .then(response => response.json())
+                        .then(response => response.text())
                         .then(result => {
-                            bootbox.alert("<?php echo $lang['file_removed']; ?>");
-                            if (fieldType === 'regular') {
-                                document.getElementById('taskFile').value = '';
-                                document.getElementById('taskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
-                                document.getElementById('removeTaskFileButton').style.display = 'none';
+                            console.log('removeTaskFile result: ' + result);
+                            if (result.includes('success')) {
+                                bootbox.alert("<?php echo $lang['file_removed']; ?>");
+                                if (fieldType === 'regular') {
+                                    document.getElementById('taskFile').value = '';
+                                    document.getElementById('taskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
+                                    document.getElementById('removeTaskFileButton').style.display = 'none';
+                                }
+                                else if (fieldType === 'correct-excel') {
+                                    document.getElementById('correctTaskFile').value = '';
+                                    document.getElementById('correctTaskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
+                                    document.getElementById('removeCorrectTaskFileButton').style.display = 'none';
+                                }
+                                else if (fieldType === 'data-python') {
+                                    document.getElementById('correctPythonDataFile').value = '';
+                                    document.getElementById('correctPythonDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
+                                    document.getElementById('removePythonDataFileButton').style.display = 'none';
+                                }
+                                else if (fieldType === 'data-orange') {
+                                    document.getElementById('correctOrangeDataFile').value = '';
+                                    document.getElementById('correctOrangeDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
+                                    document.getElementById('removeOrangeDataFileButton').style.display = 'block';
+                                }
                             }
-                            else if (fieldType === 'correct-excel') {
-                                document.getElementById('correctTaskFile').value = '';
-                                document.getElementById('correctTaskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
-                                document.getElementById('removeCorrectTaskFileButton').style.display = 'none';
-                            }
-                            else if (fieldType === 'data-python') {
-                                document.getElementById('correctPythonDataFile').value = '';
-                                document.getElementById('correctPythonDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
-                                document.getElementById('removePythonDataFileButton').style.display = 'none';
-                            }
-                            else if (fieldType === 'data-orange') {
-                                document.getElementById('correctOrangeDataFile').value = '';
-                                document.getElementById('correctOrangeDataFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
-                                document.getElementById('removeOrangeDataFileButton').style.display = 'block';
+                            else {
+                                bootbox.alert("<?php echo $lang['error_removing_file']; ?>");
                             }
 
                         })
@@ -3670,9 +3764,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         document.getElementById('step3').style.display = 'none';
                         document.getElementById('step4').style.display = 'none';
                         updateFooterButtons(currentStep, 'PDF');
+                        deleteFilesOnCloseModal();
                     }
                 }
             });
+        }
+
+        function deleteFilesOnCloseModal() {
+            if (tasksModalState === 'Add') {
+                const formData = new FormData();
+                formData.append('message', 'delete-task-files-on-close');
+                formData.append('current-task-file-path', currentTaskFilePath);
+                formData.append('current-correct-task-file-path', currentCorrectTaskFilePath);
+                formData.append('current-python-data-file-path', currentPythonDataFilePath);
+                formData.append('current-orange-data-file-path', currentOrangeDataFilePath);
+                formData.append('class-id', currentClassId);
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                });
+            }
         }
 
         let currentStep = 1;
@@ -3716,7 +3827,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 taskFile.setAttribute('accept', '.xls,.xlsx');
                 taskFileCorrect.setAttribute('accept', '.xls,.xlsx');
                 taskFileDiv.style.display = 'block';
-            }
+            } 
+            
+            // const useDocumentInformationDiv = document.getElementById('useDocumentInformationDiv');
+            // if (useDocumentInformationDiv) {
+            //     if (taskType === 'PDF') {
+            //         useDocumentInformationDiv.style.display = 'none';
+            //     } else {
+            //         useDocumentInformationDiv.style.display = 'block';
+            //     }
+            // }
+            
             
             // if (taskType === 'Python') {
             //     //hide taskFileDiv
@@ -3749,6 +3870,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 fileInputTaskDoneLabel.innerText = '<?php echo $lang['upload_orange_screenshot_file']; ?>';
 
             }
+            if (taskType === 'PDF') {
+                document.getElementById('useDocumentInformation').disabled = true;
+            }
         }
 
         function nextStep() {
@@ -3757,13 +3881,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (steps[currentStep - 1] === 1) {
                 const fileInput = document.getElementById('taskFile');
-                const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
+                const fileName = fileInput.labels[0].innerText;
+                // const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 const correctFileInput = document.getElementById('correctTaskFile');
-                const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
+                const correctFileName = correctFileInput.labels[0].innerText;
+                // const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 const pythonDataFileInput = document.getElementById('correctPythonDataFile');
-                const pythonDataFileName = pythonDataFileInput.files.length > 0 ? pythonDataFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
+                const pythonDataFileName = pythonDataFileInput.labels[0].innerText;
+                // const pythonDataFileName = pythonDataFileInput.files.length > 0 ? pythonDataFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 const orangeDataFileInput = document.getElementById('correctOrangeDataFile');
-                const orangeDataFileName = orangeDataFileInput.files.length > 0 ? orangeDataFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
+                const orangeDataFileName = orangeDataFileInput.labels[0].innerText;
+                // const orangeDataFileName = orangeDataFileInput.files.length > 0 ? orangeDataFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 document.getElementById('displayTaskFile').innerText = fileName;
                 document.getElementById('displayTaskCorrectFile').innerText = correctFileName;
                 document.getElementById('displayTaskPythonDataFile').innerText = pythonDataFileName;
@@ -3837,15 +3965,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (steps[currentStep - 1] === 4 || steps[currentStep - 1] === 3) {
                 const fileInput = document.getElementById('taskFile');
-                const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
+                const fileName = fileInput.labels[0].innerText;
                 const correctFileInput = document.getElementById('correctTaskFile');
-                const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
+                const correctFileName = correctFileInput.labels[0].innerText;
                 document.getElementById('displayTaskFile2').innerText = fileName;
                 document.getElementById('finalTaskName').innerText = document.getElementById('taskName').value;
                 document.getElementById('finalTaskType').innerText = document.getElementById('taskType').value;
                 document.getElementById('finalTaskDescription').innerText = document.getElementById('taskDescription').value;
                 document.getElementById('finalTaskSummary').innerText = document.getElementById('taskSummary').value;
-                document.getElementById('finalTaskQuestions').innerText = document.getElementById('taskQuestions').value;
+                
+                // document.getElementById('finalTaskQuestions').innerText = document.getElementById('taskQuestions');
+                // create a new div element with custom id and add that inside finalTaskQuestions
+                const finalQuestionsContainer = document.createElement('div');
+                finalQuestionsContainer.id = 'finalQuestionsContainer';
+                document.getElementById('finalTaskQuestions').appendChild(finalQuestionsContainer);
+                createSelfCheckAccordion(questionsGlobal, finalQuestionsContainer, true);
+                
+                
+                
+                // document.getElementById('finalTaskQuestions').innerText = document.getElementById('taskQuestions');
+                // Wait for finalTaskQuestions to be initialized
+                // const waitForElement = setInterval(() => {
+                //     const finalTaskQuestions = document.getElementById('finalTaskQuestions');
+                //     if (finalTaskQuestions) {
+                //         clearInterval(waitForElement);
+                //         createSelfCheckAccordion(questionsGlobal, finalTaskQuestions, true);
+                //     }
+                // }, 100); // Check every 100ms
+
+                // // Add a timeout to prevent infinite waiting
+                // setTimeout(() => {
+                //     clearInterval(waitForElement);
+                //     console.error('Timeout waiting for finalTaskQuestions element');
+                // }, 5000); // Stop checking after 5 seconds
+
                 document.getElementById('step4').style.display = 'block';
                 document.getElementById('step3').style.display = 'none';
 
@@ -3982,6 +4135,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('userListModal').classList.remove('is-active');
         }
 
+        function backToClassList()
+        {
+            closeUserListModal();
+            openClassModal();
+        }
+
         function openSettingsModal() {
             document.getElementById('settingsModal').classList.add('is-active');
         }
@@ -3994,7 +4153,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // bootbox.alert('<?php echo $lang['you_selected']; ?> ' + classId);
             closeClassModal();
             getClassUserList(classId);
-            checkIfClassIsNotMainForTeacher(classId);
+            <?php if ($current_user->user_role === 'teacher') { ?>
+                checkIfClassIsNotMainForTeacher(classId);
+            <?php } else { ?>
+                openUserListModal();
+            <?php } ?>
         }
 
         function openAddUsersModal(classId) {
@@ -4056,20 +4219,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function createSelfCheckAccordion(questions, elementToAddAfter, displayOnly = false) {
-            const strongText = document.createElement('strong');
-            strongText.innerText = '<?php echo $lang['self_check_questions']; ?>:';
-            elementToAddAfter.parentNode.insertBefore(strongText, elementToAddAfter.nextSibling);
 
-            const accordionContainer = document.createElement('div');
-            accordionContainer.id = 'accordion';
+            existingAccordion_cards = document.getElementsByClassName('ITAIAssistant101_accordion_card');
+            console.log('existingAccordion_cards:', existingAccordion_cards.length);
+            
+            let accordionContainer = null;
+
+            if (displayOnly) {
+                accordionContainer = document.getElementById('accordionDisplayOnly');
+            }
+            else {
+                accordionContainer = document.getElementById('accordion');
+            }
+            let strongText = null;
+            // let addStrongText = true;
+            if (accordionContainer != null && !displayOnly) {
+                accordionContainer.innerHTML = '';
+            }
+
+            strongText = document.createElement('strong');
+            strongText.innerText = '<?php echo $lang['self_check_questions']; ?>:';
+            strongText.id = 'selfCheckQuestionsText_itaiassistant101';
+
+
+            if (existingAccordion_cards.length == 0) {
+                elementToAddAfter.parentNode.insertBefore(strongText, elementToAddAfter.nextSibling);
+                accordionContainer = document.createElement('div');
+                if (displayOnly) {
+                    accordionContainer.id = 'accordionDisplayOnly';
+                }
+                else {
+                    accordionContainer.id = 'accordion';
+                }
+                console.log('created accordionContainer');
+            }
+            else {
+                // addStrongText = false;
+                // strongText = document.getElementById('selfCheckQuestionsText_itaiassistant101');
+                if (!displayOnly) {
+                    accordionContainer = existingAccordion_cards[0].parentNode;
+                    accordionContainer.innerHTML = '';
+                }
+                else {
+                    accordionContainers = document.querySelectorAll('[id=accordionDisplayOnly]');
+                    for (let i = 0; i < accordionContainers.length; i++) {
+                        accordionContainers[i].remove();
+                    }
+                    accordionContainer = document.createElement('div');
+                    accordionContainer.id = 'accordionDisplayOnly';
+                    console.log('accordionContainer:', accordionContainer);
+                }
+            }
 
             questions.forEach((q, index) => {
+                // print out the whole q,decoded
+                console.log('q:', q);
+
                 const card = document.createElement('div');
                 card.classList.add('card');
 
+                if (!displayOnly) {
+                    card.classList.add('ITAIAssistant101_accordion_card');
+                }
+
+                console.log('before cardHeader');
                 const cardHeader = document.createElement('div');
                 cardHeader.classList.add('card-header');
                 cardHeader.id = `heading${index}`;
+                console.log('after cardHeader');
 
                 const h5 = document.createElement('h5');
                 h5.classList.add('mb-0');
@@ -4086,11 +4303,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 cardHeader.appendChild(h5);
                 card.appendChild(cardHeader);
 
+                console.log('before collapseDiv');
                 const collapseDiv = document.createElement('div');
                 collapseDiv.id = `collapse${index}`;
                 collapseDiv.classList.add('collapse');
                 collapseDiv.setAttribute('aria-labelledby', `heading${index}`);
-                collapseDiv.setAttribute('data-parent', '#accordion');
+                collapseDiv.setAttribute('data-parent', '#' + accordionContainer.id);
+                console.log('after collapseDiv');
 
                 const cardBody = document.createElement('div');
                 cardBody.classList.add('card-body');
@@ -4104,7 +4323,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Add edit and delete buttons
                     const editButton = document.createElement('button');
                     editButton.classList.add('btn','btn-warning','btn-sm');
-                    editButton.style.marginRight = '0.5rem';
+                    editButton.style.margin = '0.2rem';
                     editButton.innerText = '<?php echo $lang['edit']; ?>';
                     editButton.addEventListener('click', function() {
                         bootbox.prompt({
@@ -4119,11 +4338,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             if (newAnswer !== null) {
                                                 questions[index].question = newQuestion;
                                                 questions[index].answer = newAnswer;
+                                                questions[index].order_number = index + 1.0;
                                                 questions.forEach((q, i) => {
                                                     q.order_number = i + 1.0;
                                                 });
+                                                questionsGlobal = questions;
                                                 document.getElementById('taskQuestions').value = JSON.stringify({ questions }, null, 2);
-                                                accordionContainer.innerHTML = '';
+                                                // accordionContainer.innerHTML = '';
                                                 createSelfCheckAccordion(questions, elementToAddAfter);
                                             }
                                         }
@@ -4135,6 +4356,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     cardBody.appendChild(editButton);
                     const deleteButton = document.createElement('button');
                     deleteButton.classList.add('btn','btn-danger','btn-sm');
+                    deleteButton.style.margin = '0.2rem';
                     deleteButton.innerText = '<?php echo $lang['delete']; ?>';
                     deleteButton.addEventListener('click', function() {
                         bootbox.confirm("<?php echo $lang['confirm_delete_question']; ?>", function(result) {
@@ -4143,8 +4365,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 questions.forEach((q, i) => {
                                     q.order_number = i + 1.0;
                                 });
+                                questionsGlobal = questions;
                                 document.getElementById('taskQuestions').value = JSON.stringify({ questions }, null, 2);
-                                accordionContainer.innerHTML = '';
+                                // accordionContainer.innerHTML = '';
                                 createSelfCheckAccordion(questions, elementToAddAfter);
                             }
                         });
@@ -4157,6 +4380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Add button to create new question
                 const createButton = document.createElement('button');
                 createButton.classList.add('btn','btn-success','btn-sm');
+                createButton.style.margin = '0.2rem';
                 createButton.innerText = '<?php echo $lang['add_question']; ?>';
                 createButton.addEventListener('click', function() {
                     bootbox.prompt({
@@ -4167,12 +4391,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     title: "<?php echo $lang['enter_answer']; ?>",
                                     callback: function(newAnswer) {
                                         if (newAnswer) {
-                                            questions.push({ question: newQuestion, answer: newAnswer });
                                             questions.forEach((q, i) => {
                                                 q.order_number = i + 1.0;
                                             });
+                                            questions.push({ question: newQuestion, answer: newAnswer, order_number: questions.length + 1.0 });
+                                            questionsGlobal = questions;
                                             document.getElementById('taskQuestions').value = JSON.stringify({ questions }, null, 2);
-                                            accordionContainer.innerHTML = '';
+                                            // accordionContainer.innerHTML = '';
                                             createSelfCheckAccordion(questions, elementToAddAfter);
                                         }
                                     }
@@ -4185,6 +4410,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             elementToAddAfter.parentNode.insertBefore(accordionContainer, strongText.nextSibling);
+            strongTextElements = document.querySelectorAll('[id=selfCheckQuestionsText_itaiassistant101]');
+            // delete all except the first one
+            for (let i = 1; i < strongTextElements.length; i++) {
+                strongTextElements[i].remove();
+            }
             hideLoadingModal();
         }
 
@@ -4293,7 +4523,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         window.addEventListener("load", function() {
             setTimeout(function() {
-                
+                // php check if $username from $userManager is teacher or student
+                <?php if ($current_user->user_role === 'teacher') { ?>
+                    // hide elements by class name teachers-buttons
+                    var elements = document.getElementsByClassName("teachers-buttons");
+                    for (var i = 0; i < elements.length; i++) {
+                        elements[i].style.display = 'block';
+                    }
+                <?php }?>
+                getTiedRequestsCount();
                 sendIntroMessage();
                 console.log('Chat history loaded');
                 getCurrentClassId();
