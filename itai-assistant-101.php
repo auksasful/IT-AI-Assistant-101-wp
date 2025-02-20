@@ -1,24 +1,17 @@
 <?php
 
 /*
-Plugin Name: ITAI Assistant 101
-Description: A simple plugin for teacher authentication using API key.
-Version: 1.01
-Author: Your Name
+Plugin Name: IT AI Assistant For Lithuania
+Description: A plugin that is used for data analysis teaching for Lithuanian schools.
+Version: 1.02
+Author: Tomas Staškevičius
 */
 
 // Create new rewrite rules
 function itaiassistant101_rewrite_rule() {
     add_rewrite_rule('^itaiassistant101/?$', 'index.php?itaiassistant101_login=1', 'top');
-    add_rewrite_rule('^itaiassistant101/dashboard/?', 'index.php?itaiassistant101_dashboard=1', 'top');
     add_rewrite_rule('^itaiassistant101/login/?', 'index.php?itaiassistant101_login=1', 'top');
     add_rewrite_rule('^itaiassistant101/logout/?', 'index.php?itaiassistant101_logout=1', 'top');
-    add_rewrite_rule('^itaiassistant101/ChangePassword/?', 'index.php?itaiassistant101_ChangePassword=1', 'top');
-    add_rewrite_rule('^itaiassistant101/userlist/?', 'index.php?itaiassistant101_userlist=1', 'top');
-    add_rewrite_rule('^itaiassistant101/HandleResetPassword/?', 'index.php?itaiassistant101_HandleResetPassword=1', 'top');
-    add_rewrite_rule('^itaiassistant101/ResetTeacherPassword/?', 'index.php?itaiassistant101_ResetTeacherPassword=1', 'top');
-    add_rewrite_rule('^itaiassistant101/ClassList/?', 'index.php?itaiassistant101_ClassList=1', 'top');
-    add_rewrite_rule('^itaiassistant101/ClassUserList/?', 'index.php?itaiassistant101_ClassUserList=1', 'top');
     add_rewrite_rule('^itaiassistant101/index/?', 'index.php?itaiassistant101_index=1', 'top');
     add_rewrite_rule('^itaiassistant101/joinclass/?', 'index.php?itaiassistant101_joinclass=1', 'top');
     add_rewrite_rule('^itaiassistant101/faq/?', 'index.php?itaiassistant101_faq=1', 'top');
@@ -28,6 +21,7 @@ function itaiassistant101_rewrite_rule() {
 function itaiassistant101_activate() {
     itaiassistant101_rewrite_rule();
     flush_rewrite_rules();
+    error_log('ITAI Assistant 101 Plugin Activated and Rewrite Rules Flushed');
 }
 register_activation_hook(__FILE__, 'itaiassistant101_activate');
 
@@ -35,15 +29,8 @@ add_action('init', 'itaiassistant101_rewrite_rule');
 
 // Add new query vars
 function itaiassistant101_query_vars($vars) {
-    $vars[] = 'itaiassistant101_dashboard';
     $vars[] = 'itaiassistant101_login';
     $vars[] = 'itaiassistant101_logout';
-    $vars[] = 'itaiassistant101_ChangePassword';
-    $vars[] = 'itaiassistant101_userlist';
-    $vars[] = 'itaiassistant101_HandleResetPassword';
-    $vars[] = 'itaiassistant101_ResetTeacherPassword';
-    $vars[] = 'itaiassistant101_ClassList';
-    $vars[] = 'itaiassistant101_ClassUserList';
     $vars[] = 'itaiassistant101_index';
     $vars[] = 'itaiassistant101_joinclass';
     $vars[] = 'itaiassistant101_faq';
@@ -54,24 +41,11 @@ add_filter('query_vars', 'itaiassistant101_query_vars');
 
 // Redirect to the appropriate template
 function itaiassistant101_template_include($template) {
-    if (get_query_var('itaiassistant101_dashboard')) {
-        return plugin_dir_path(__FILE__) . 'dashboard.php';
-    } elseif (get_query_var('itaiassistant101_login')) {
+    if (get_query_var('itaiassistant101_login')) {
+        error_log('itaiassistant101_login query var detected');
         return plugin_dir_path(__FILE__) . 'login.php';
     } elseif (get_query_var('itaiassistant101_logout')) {
         return plugin_dir_path(__FILE__) . 'logout.php';
-    } elseif (get_query_var('itaiassistant101_ChangePassword')) { 
-        return plugin_dir_path(__FILE__) . 'ChangePassword.php';
-    } elseif (get_query_var('itaiassistant101_userlist')) { 
-        return plugin_dir_path(__FILE__) . 'userlist.php';
-    } elseif (get_query_var('itaiassistant101_HandleResetPassword')) { 
-        return plugin_dir_path(__FILE__) . 'HandleResetPassword.php';
-    } elseif (get_query_var('itaiassistant101_ResetTeacherPassword')) { 
-        return plugin_dir_path(__FILE__) . 'ResetTeacherPassword.php';
-    } elseif (get_query_var('itaiassistant101_ClassList')) { 
-        return plugin_dir_path(__FILE__) . 'ClassList.php';
-    } elseif (get_query_var('itaiassistant101_ClassUserList')) { 
-        return plugin_dir_path(__FILE__) . 'ClassUserList.php';
     } elseif (get_query_var('itaiassistant101_index')) { 
         return plugin_dir_path(__FILE__) . 'index.php';
     } elseif (get_query_var('itaiassistant101_joinclass')) { 
@@ -332,7 +306,11 @@ function create_student_task_chat_history_table() {
 
 
 function move_default_student_tasks() {
-    $source_dir = plugin_dir_path(__FILE__) . 'default_student_tasks';
+    if (!defined('ABSPATH')) {
+        require_once(dirname(__FILE__) . '/../../../wp-load.php');
+    }
+    
+    $source_dir = dirname(__FILE__) . '/default_student_tasks';
     $destination_dir = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks';
 
     if (!file_exists($destination_dir)) {
@@ -342,10 +320,10 @@ function move_default_student_tasks() {
     $files = scandir($source_dir);
     foreach ($files as $file) {
         if ($file !== '.' && $file !== '..') {
-            $source_file = $source_dir . '/' . $file;
-            $destination_file = $destination_dir . '/' . $file;
+            $source_file = "{$source_dir}/{$file}";
+            $destination_file = "{$destination_dir}/{$file}";
             if (!copy($source_file, $destination_file)) {
-                error_log('Failed to copy ' . $source_file . ' to ' . $destination_file);
+                error_log("Failed to copy {$source_file} to {$destination_file}");
             } else {
                 unlink($source_file);
             }
@@ -353,10 +331,16 @@ function move_default_student_tasks() {
     }
 }
 
-register_activation_hook(__FILE__, 'move_default_student_tasks');
+if (function_exists('register_activation_hook')) {
+    register_activation_hook(__FILE__, 'move_default_student_tasks');
+}
 
 function move_icons() {
-    $source_dir = plugin_dir_path(__FILE__) . 'icons';
+    if (!defined('ABSPATH')) {
+        require_once(dirname(__FILE__) . '/../../../wp-load.php');
+    }
+    
+    $source_dir = dirname(__FILE__) . '/icons';
     $destination_dir = WP_CONTENT_DIR . '/ITAIAssistant101/icons';
 
     if (!file_exists($destination_dir)) {
@@ -366,10 +350,10 @@ function move_icons() {
     $files = scandir($source_dir);
     foreach ($files as $file) {
         if ($file !== '.' && $file !== '..') {
-            $source_file = $source_dir . '/' . $file;
-            $destination_file = $destination_dir . '/' . $file;
+            $source_file = "{$source_dir}/{$file}";
+            $destination_file = "{$destination_dir}/{$file}";
             if (!copy($source_file, $destination_file)) {
-                error_log('Failed to copy ' . $source_file . ' to ' . $destination_file);
+                error_log("Failed to copy {$source_file} to {$destination_file}");
             } else {
                 unlink($source_file);
             }
@@ -377,7 +361,9 @@ function move_icons() {
     }
 }
 
-register_activation_hook(__FILE__, 'move_icons');
+if (function_exists('register_activation_hook')) {
+    register_activation_hook(__FILE__, 'move_icons');
+}
 
 
 register_activation_hook(__FILE__, 'create_user_table');
@@ -434,13 +420,10 @@ add_action('template_redirect', function() {
         $taskManager = new TaskManager();
         $api_connector = new ApiConnector('');
         session_start();
-        error_log('itaiassistant101_download_task_data: Download task data called');
         if (isset($_SESSION['jwt_token'])) {
-            error_log('itaiassistant101_download_task_data: jwt_token found');
             $jwt_token = $_SESSION['jwt_token'];
             $decoded_token = $api_connector->verify_jwt($jwt_token);
             if ($decoded_token) {
-                error_log('itaiassistant101_download_task_data: Token valid');
                 $username = $decoded_token->data->username;
                 $userType = $decoded_token->data->user_type;
                 $current_user = $user_manager->get_user_by_username($username);
@@ -462,7 +445,6 @@ add_action('template_redirect', function() {
         }
 
         $class_id = $_GET['classId'];
-        // $username = $_GET['username'];
         $class = $classManager->get_class_by_id($class_id);
         if ($class->class_main_teacher != $username) {
             http_response_code(403);

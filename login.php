@@ -6,16 +6,10 @@ require_once 'APIConnector.php';
 require_once 'UserManager.php';
 require_once 'languageconfig.php';
 
-// Debug statement to check the script execution
-error_log('login.php script executed');
-
 // Check if form is submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $user_manager = new UserManager();
     if (isset($_POST['form_register'])) {
-        error_log('Form submitted');
-        error_log('User Name: ' . $_POST['user_name']);
-        error_log('User Surname: ' . $_POST['user_surname']);
         $api_key = $_POST['api_key'];
 
         if($api_key){
@@ -53,17 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         if ($jwt_token) {
             $_SESSION['jwt_token'] = $jwt_token;
-            error_log('Redirecting to index');
             wp_redirect(home_url('/itaiassistant101/index'));
             exit();
         } else {
             $user_manager->delete_user($credentials['username']);
-            error_log('Redirecting to login (invalid token)');
             wp_redirect(home_url('/itaiassistant101/login'));
             exit();
         }
     } elseif (isset($_POST['general_login'])) {
-        error_log('General login form submitted');
         $api_connector = new ApiConnector('');
         $username = sanitize_text_field($_POST['username']);
         $password = sanitize_text_field($_POST['password']);
@@ -77,17 +68,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             if ($jwt_token) {
                 $_SESSION['jwt_token'] = $jwt_token;
-                error_log('Redirecting to index');
                 wp_redirect(home_url('/itaiassistant101/index'));
                 exit();
             } else {
-                error_log('Redirecting to login (invalid token)');
                 wp_redirect(home_url('/itaiassistant101/login'));
                 exit();
             }
         }
         else {
-            error_log('Invalid username or password');
             echo "<script>alert('" . $lang['invalid_username_or_password'] . "')</script>";
                 
             $login_attempts = $user_manager->track_login_attempt($username);
@@ -99,19 +87,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     elseif (isset($_POST['change_password'])) {
-        error_log('Change password form submitted');
         $api_key = $_POST['change_password_api_key'];
         $api_connector = new ApiConnector($api_key);
         $jwt_token = $api_connector->test_connection('', '', false);
         $decoded_token = $api_connector->verify_jwt($jwt_token);
         if ($decoded_token) {
             $_SESSION['jwt_token'] = $jwt_token;
-            error_log('Redirecting to index');
             $user_manager->create_temporary_password($decoded_token->data->username);
             wp_redirect(home_url('/itaiassistant101/changepw'));
             exit();
         } else {
-            error_log('Redirecting to login (invalid token)');
             wp_redirect(home_url('/itaiassistant101/login'));
             exit();
         }
@@ -119,21 +104,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 if (isset($_SESSION['jwt_token'])) {
-    error_log('JWT token found in session');
     $api_connector = new ApiConnector('');
     $jwt_token = $_SESSION['jwt_token'];
     $decoded_token = $api_connector->verify_jwt($jwt_token);
 
     if ($decoded_token) {
-        error_log('Token valid, redirecting to index');
         wp_redirect(home_url('/itaiassistant101/index'));
         exit();
-    } else {
-        error_log('Token invalid');
-    }
-} else {
-    error_log('No JWT token in session');
-}
+    } 
+} 
 
 ?>
 <!DOCTYPE html>

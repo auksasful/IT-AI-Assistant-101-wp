@@ -86,28 +86,6 @@ class UserManager {
         $wpdb->delete($table_name, array('user_username' => $username));
     }
 
-    //Make user a teacher with tied_to_teacher field
-    public function make_teacher($username, $teacher_username) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
-        $wpdb->update(
-            $table_name,
-            array('user_role' => 'teacher', 'tied_to_teacher' => $teacher_username),
-            array('user_username' => $username)
-        );
-    }
-
-    //Make user a student with tied_to_teacher field
-    public function make_student($username) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
-        $wpdb->update(
-            $table_name,
-            array('user_role' => 'student'),
-            array('user_username' => $username)
-        );
-    }
-
     public function track_login_attempt($username) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'it_ai_assistant101_login_attempts';
@@ -171,17 +149,6 @@ class UserManager {
         );
     }
 
-    public function get_students_by_teacher($teacher_username) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
-        return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $table_name WHERE tied_to_teacher = %s OR user_username = %s OR tied_request = %s", 
-            $teacher_username,
-            $teacher_username,
-            $teacher_username
-        ));
-    }
-
     // create temporary password for student
     public function create_temporary_password($username) {
         global $wpdb;
@@ -190,9 +157,6 @@ class UserManager {
         $hashed_password = password_hash($password, PASSWORD_BCRYPT);
         $temporary_password = $this->data_encryption->encrypt($password);
         // error log all passwords:
-        error_log('Temporary password: ' . $password);
-        error_log('Hashed temporary password: ' . $hashed_password);
-        error_log('Encrypted temporary password: ' . $temporary_password);
         $wpdb->update(
             $table_name,
             array('user_password' => $hashed_password, 'temporary_password' => $temporary_password),
@@ -209,28 +173,13 @@ class UserManager {
         return $this->data_encryption->decrypt($user->temporary_password);
     }
 
-    // reset password for teacher, taking the username and password
-    public function reset_password($username, $password) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
-        $hashed_password = password_hash($password, PASSWORD_BCRYPT);
-        
-        $wpdb->update(
-            $table_name,
-            array('user_password' => $hashed_password, 'temporary_password' => ''),
-            array('user_username' => $username)
-        );
-    }
-
     public function update_user_api_key($username, $api_key) {
         if(!$this->is_api_key_new($api_key)){
-            error_log('API key already in use');
             return false;
         }
         $api_connector = new ApiConnector($api_key);
         $jwt_token = $api_connector->test_connection($username, 'teacher', true);
         if ($jwt_token) {
-            error_log('API key is valid');
             global $wpdb;
             $table_name = $wpdb->prefix . 'it_ai_assistant101_user';
             $encrypted_api_key = $this->data_encryption->encrypt($api_key);
@@ -242,7 +191,6 @@ class UserManager {
             );
             return true;
         } else {
-            error_log('API key is invalid');
             return false;
         }
     }
@@ -289,15 +237,12 @@ class UserManager {
 
             $teacher_user = $this->get_user_by_username($teacher_username);
             var_dump($teacher_user);
-            error_log('Teacher user default class id: ' . $teacher_user->default_class_id);
             $table_name = $this->db->prefix . 'it_ai_assistant101_class_user';
             // check if not exists
             $class_user_count = $this->db->get_var($this->db->prepare("SELECT COUNT(*) FROM $table_name WHERE class_id = %d AND user_username = %s", $teacher_user->default_class_id, $username));
             if($class_user_count > 0) {
-                error_log('User already in class ' . $username);
                 return;
             }
-            error_log('Adding user to class ' . $username);
 
             $this->db->insert(
                 $table_name,
@@ -318,10 +263,6 @@ class UserManager {
 
     public function decrypt($encrypted_text) {
         return $this->data_encryption->decrypt($encrypted_text);
-    }
-    
-    public function encrypt($text) {
-        return $this->data_encryption->encrypt($text);
     }
     
 }

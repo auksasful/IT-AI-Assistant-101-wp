@@ -155,7 +155,6 @@ class TaskManager {
             ),
             array('task_id' => $task_id)
         );
-        error_log("Task updated in the database: " . $task_id);
     }
 
     public function delete_task($task_id, $user_username, $class_id) {
@@ -224,14 +223,6 @@ class TaskManager {
         );
     }
 
-    public function delete_student_task_solution($id) {
-        $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_solution';
-        $this->db->delete(
-            $table_name,
-            array('id' => $id)
-        );
-    }
-
     public function insert_student_task_chat_history($task_id, $class_id, $user_username, $message_role, $system_message, $user_message) {
         $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_chat_history';
         $this->db->insert(
@@ -253,19 +244,6 @@ class TaskManager {
         $sql = "SELECT * FROM $table_name WHERE task_id = %d AND class_id = %d AND user_username = %s";
         $results = $this->db->get_results($this->db->prepare($sql, $task_id, $class_id, $user_username));
         return $results;
-    }
-
-    public function update_student_task_chat_history($id, $message_role, $system_message, $user_message) {
-        $table_name = $this->db->prefix . 'it_ai_assistant101_student_task_chat_history';
-        $this->db->update(
-            $table_name,
-            array(
-                'message_role' => $message_role,
-                'system_message' => $system_message,
-                'user_message' => $user_message
-            ),
-            array('id' => $id)
-        );
     }
 
     public function delete_student_task_chat_history($id) {

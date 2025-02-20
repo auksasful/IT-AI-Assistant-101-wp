@@ -6,29 +6,21 @@ require_once 'APIConnector.php';
 require_once 'ClassManager.php';
 require_once 'UserManager.php';
 require_once 'ExcelReader.php';
-require_once 'TaskData.php';
-require_once 'PDFReader.php';
+require_once 'GeminiManager.php';
 require_once 'TaskManager.php';
 require_once 'languageconfig.php';
-require_once 'ClassManager.php';
 
 $api_connector = new ApiConnector('');
-// $classManager = new ClassManager();
 $user_manager = new UserManager();
 $current_task = "";
 $taskManager = new TaskManager();
 $username = '';
 $classManager = new ClassManager();
-$user_excel_string = '';
-$pdf_document_talking = true;
-$correct_excel_sting = ' [A1] => Stačiakampio plotas S = [B1] => [C1] => [D1] => [E1] => 140 [F1] => dm2 [G1] => [H1] => [I1] => [J1] => [A2] => a, dm [B2] => 2 [C2] => 1 [D2] => 7 [E2] => 28 [F2] => 14 [G2] => 1.4 [H2] => [I2] => [J2] => [A3] => b, dm [B3] => =E1/B2 ( 70 ) [C3] => =E1/C2 ( 140 ) [D3] => =E1/D2 ( 20 ) [E3] => =E1/E2 ( 5 ) [F3] => =E1/F2 ( 10 ) [G3] => =E1/G2 ( 100 ) [H3] => [I3] => [J3] => ';
 
 if (isset($_SESSION['jwt_token'])) {
-    error_log('jwt_token found');
     $jwt_token = $_SESSION['jwt_token'];
     $decoded_token = $api_connector->verify_jwt($jwt_token);
     if ($decoded_token) {
-        error_log('Token valid');
         $username = $decoded_token->data->username;
         $userType = $decoded_token->data->user_type;
         $current_user = $user_manager->get_user_by_username($username);
@@ -60,219 +52,19 @@ if(isset($_GET['task_id'])){
 else {
     $current_task = $lang['no_task_selected'];
 }
-// OpenAI API settings
+// GEMINI API settings
 $API_KEY = $user_manager->get_class_API_key($class_id);
-
-
-if (!isset($_SESSION['chat_parameters'])) {
-    $_SESSION['chat_parameters'] = [
-        "system_instruction" => [
-            "parts" => [
-                "text" => $current_task->system_prompt
-            ]
-        ],
-        "contents" => []
-    ];
-}
-
-
-// Function to send a request to the OpenAI API
-function callOpenAI($endpoint, $data) {
-    global $user_excel_string;
-    global $correct_excel_sting;
-    global $current_task;
-    global $pdf_document_talking;
-    if ($data['messages'][count($data['messages']) - 1]['content'] == "clear-chat"){
-        $_SESSION['chat_parameters'] = [
-            "system_instruction" => [
-                "parts" => [
-                    "text" => $current_task->system_prompt
-                ]
-            ],
-            "contents" => []
-        ];
-    }
-
-    if($data['messages'][count($data['messages']) - 1]['content'] == "check-excel"){
-        error_log('user_excel_string: ' . $user_excel_string);
-        if ($user_excel_string == ''){
-            return;
-        }
-        else {
-            $data['messages'][count($data['messages']) - 1]['content'] = 'You must compare the result of a student'. $user_excel_string . 'with the correct result' . $correct_excel_sting . 'and provide feedback and useful tips. Make sure you only use the data from' . $user_excel_string .' for the final answer and do NOT use the correct result.';
-            $user_excel_string = '';
-            error_log($data['messages'][count($data['messages']) - 1]['content']);
-        }
-    }
-
-    if($pdf_document_talking){
-        $relevant_passage = call_embedded_pdf($data['messages'][count($data['messages']) - 1]['content']);
-        $_SESSION['chat_parameters'] = [
-            "system_instruction" => [
-                "parts" => [
-                    "text" => "You are a helpful and informative bot that answers questions in lithuanian language using text from the reference passage included below. \
-  Be sure to respond in a complete sentence, being comprehensive, including all relevant background information. \
-  However, you are talking to a non-technical audience, so be sure to break down complicated concepts and \
-  strike a friendly and converstional tone. \
-  If the passage is irrelevant to the answer, you may ignore it.
-  You should expand the answer a bit using your data outside of the passage if there is too little information in the passage. \
-  QUESTION: '" . $data['messages'][count($data['messages']) - 1]['content'] . "'
-  PASSAGE: '" . $relevant_passage . "'
-
-    ANSWER:"
-                ]
-            ],
-            "contents" => []
-        ];
-    }
-
-
-    global $API_KEY;
-
-    $chat_parameters = $_SESSION['chat_parameters'];
-
-    $headers = [
-        'Content-Type: application/json',
-    ];
-
-    $chat_parameters['contents'][] = [
-        "role" => "user",
-        "parts" => [
-            "text" => $data['messages'][count($data['messages']) - 1]['content']
-        ]
-    ];
-    
-    $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$API_KEY");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($chat_parameters));
-
-    $response = curl_exec($ch);
-    curl_close($ch);
-
-    $assistant_response = json_decode($response);
-    $chat_parameters['contents'][] = [
-        "role" => "model",
-        "parts" => [
-            "text" => $assistant_response->candidates[0]->content->parts[0]->text
-        ]
-    ];
-
-    $_SESSION['chat_parameters'] = $chat_parameters;
-
-    return $assistant_response;
-}
-
-function embed_fn($text) {
-    global $API_KEY;
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=$API_KEY";
-    
-    // Extract the first 5 words for the title
-    // $title = implode(' ', array_slice(explode(' ', $text), 0, 5));  
-    
-    $data = array(
-      'model' => 'models/embedding-001',
-      'content' => array(
-        'parts' => array(
-          array(
-            'text' => $text //,
-            // 'title' => $title, 
-          ),
-        ),
-      ),
-      'task_type' => 'retrieval_document',
-    );
-  
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-      'Content-Type: application/json',
-    ));
-  
-    $response = curl_exec($ch);
-    curl_close($ch);
-  
-    $response = json_decode($response, true);
-    return $response['embedding']['values'];
-}
-
-function find_best_passage($query, $documents) {
-    $queryEmbedding = embed_fn($query);
-
-    $bestPassage = '';
-    $maxDotProduct = -1; // Initialize with a value less than any possible dot product
-
-    foreach ($documents as $document) {
-        $documentEmbedding = embed_fn($document);
-
-        // Calculate the dot product
-        $dotProduct = 0;
-        for ($i = 0; $i < count($queryEmbedding); $i++) {
-            $dotProduct += $queryEmbedding[$i] * $documentEmbedding[$i];
-        }
-
-        // Update best passage if current dot product is higher
-        if ($dotProduct > $maxDotProduct) {
-            $maxDotProduct = $dotProduct;
-            $bestPassage = $document;
-        }
-    }
-
-    return $bestPassage;
-}
-
-// Function to send a request to the OpenAI API regarding ChatGPT
-function chatGPT($messages) {
-    $endpoint = 'https://api.openai.com/v1/chat/completions';
-    $data = [
-        'model' => 'gpt-3.5-turbo', // Specify the model to use
-        'messages' => $messages,
-        'max_tokens' => 500, // Maximum number of tokens for the response (can be changed as needed)
-        'temperature' => 0.7, // Diversity of the response (set between 0.0 and 1.0)
-        'n' => 1, // Number of responses to generate (can be changed as needed)
-    ];
-
-    $response = callOpenAI($endpoint, $data);
-
-    return $response->candidates[0]->content->parts[0]->text;
-}
 
 function loadChatHistory(): void {
     global $current_task;
     global $username;
     $taskManager = new TaskManager();
     $chatHistory = $taskManager->get_student_task_chat_history($current_task->task_id, $current_task->class_id, $username);
-    error_log('chat history: ' . print_r($chatHistory, true));
     foreach ($chatHistory as $message) {
-        error_log('chat history message: ' . $message->user_message);
         $role = $message->message_role;
         // $content = htmlspecialchars($message->user_message, ENT_QUOTES, 'UTF-8');
         $content = json_encode($message->user_message);
         echo "displayMessage($content, \"$role\");";  }
-}
-
-// Function to process user input and generate a response
-function processChatInput($input) {
-    // Retrieve conversation history from the session
-    session_start();
-    $messages = isset($_SESSION['messages']) ? $_SESSION['messages'] : [];
-
-    // Add the user's input to the conversation history
-    $messages[] = ['role' => 'user', 'content' => $input];
-
-    // Generate a response from ChatGPT
-    $response = chatGPT($messages);
-
-    // Add ChatGPT's response to the conversation history
-    $messages[] = ['role' => 'model', 'content' => $response];
-
-    // Save the conversation history to the session
-    $_SESSION['messages'] = $messages;
-
-    return $response;
 }
 
 function sendModelMessage($message) {
@@ -288,46 +80,20 @@ function sendModelMessage($message) {
     echo $message;
 }
 
-function sendModelFile($filePath) {
-    if (file_exists($filePath)) {
-        // Set headers
-        header('Content-Description: File Transfer');
-        header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="' . basename($filePath) . '"');
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($filePath));
-    
-        // Clean the output buffer
-        ob_clean();
-    
-        flush();
-
-        // Read the file content
-        readfile($filePath);
-        exit;
-    }
-}
-
 
 // Function to handle file uploads
 function uploadFile($fileParam, $phpCall = false) {
     if (!defined('WP_CONTENT_DIR')) {
         define('WP_CONTENT_DIR', __DIR__);
-        error_log("uploadFile: WP_CONTENT_DIR was not defined, setting it to " . WP_CONTENT_DIR);
     }
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($fileParam)) {
         global $username;
-        global $user_excel_string;
         global $API_KEY;
         global $current_task;
-        $PDFReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
+        $PDFReader = new GeminiManager($current_task->task_id, $current_task->class_id, $username);
         $folderPath = WP_CONTENT_DIR . "/ITAIAssistant101/$username/TASK" . $current_task->task_id;
-        error_log("uploadFile: folderPath when uploading: $folderPath");
         if (!is_dir($folderPath)) {
             mkdir($folderPath, 0777, true);
-            error_log("uploadFile: Created directory $folderPath");
         }
 
         $file = $fileParam;
@@ -336,18 +102,14 @@ function uploadFile($fileParam, $phpCall = false) {
         $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
         $fileName = pathinfo($filePath, PATHINFO_FILENAME);
         $tmpname = $file['tmp_name'];
-        error_log("uploadFile: Moving uploaded file from $tmpname to $filePath");
 
         if ($phpCall) {
             if (copy($file['tmp_name'], $filePath)) {
-                error_log("uploadFile: File copied successfully");
                 if ($_POST['message'] === 'python-data-file') {
                     $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.txt", 'text/plain')[0];
-                    error_log("uploadFile: python-data-file URI: $fileUri");
                     return [$filePath, $fileUri];
                 }
                 if ($_POST['message'] === 'orange-data-file') {
-                    error_log("uploadFile: orange-data-file upload completed");
                     return [$filePath, ''];
                 }
                 // if file extension is excel
@@ -360,35 +122,27 @@ function uploadFile($fileParam, $phpCall = false) {
                     fwrite($textFile, print_r($excel_data, true));
                     fclose($textFile);
                     $fileUri = $PDFReader->uploadFileNew($API_KEY, $textFilePath, "$fileName.txt", 'text/plain')[0];
-                    error_log("uploadFile: Excel file uploaded, text data URI: $fileUri");
                     return [$filePath, $fileUri];
                 }
                 elseif ($fileExtension == 'pdf') {
                     $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.pdf", 'application/pdf')[0];
-                    error_log("uploadFile: PDF file URI: $fileUri");
                     return [$filePath, $fileUri];
                 }
                 elseif (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'bmp'])) {
                     $result = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.$fileExtension", "image/$fileExtension");
-                    error_log("uploadFile: Image file upload result: " . print_r($result, true));
                     return [$filePath, $result[0], $result[1]];
                 }
-                error_log("uploadFile: No special handling needed for $filePath");
                 return [$filePath, ''];
             } else {
-                error_log("uploadFile: copy() failed");
                 return '';
             }
         } else {
             if (move_uploaded_file($file['tmp_name'], $filePath)) {
-                error_log("uploadFile: File uploaded successfully");
                 if ($_POST['message'] === 'python-data-file') {
                     $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.txt", 'text/plain')[0];
-                    error_log("uploadFile: python-data-file URI: $fileUri");
                     return [$filePath, $fileUri];
                 }
                 if ($_POST['message'] === 'orange-data-file') {
-                    error_log("uploadFile: orange-data-file upload completed");
                     return [$filePath, ''];
                 }
                 // if file extension is excel
@@ -401,23 +155,18 @@ function uploadFile($fileParam, $phpCall = false) {
                     fwrite($textFile, print_r($excel_data, true));
                     fclose($textFile);
                     $fileUri = $PDFReader->uploadFileNew($API_KEY, $textFilePath, "$fileName.txt", 'text/plain')[0];
-                    error_log("uploadFile: Excel file uploaded, text data URI: $fileUri");
                     return [$filePath, $fileUri];
                 }
                 elseif ($fileExtension == 'pdf') {
                     $fileUri = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.pdf", 'application/pdf')[0];
-                    error_log("uploadFile: PDF file URI: $fileUri");
                     return [$filePath, $fileUri];
                 }
                 elseif (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'bmp'])) {
                     $result = $PDFReader->uploadFileNew($API_KEY, $filePath, "$fileName.$fileExtension", "image/$fileExtension");
-                    error_log(message: "uploadFile: Image file upload result: " . print_r($result, true));
                     return [$filePath, $result[0], $result[1]];
                 }
-                error_log("uploadFile: No special handling needed for $filePath");
                 return [$filePath, ''];
             } else {
-                error_log("uploadFile: move_uploaded_file failed");
                 return '';
             }
         }
@@ -426,140 +175,12 @@ function uploadFile($fileParam, $phpCall = false) {
     }
 }
 
-function call_embedded_pdf($user_message) {
-    call_embedded_ocr_pdf($user_message);
-    return;
-
-    global $current_task;
-
-    $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
-    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
-    $text_array = $pdfReader->getTextFromPages($filePath);
-
-    // merge passages shorter than 500 words
-    $text_array = array_reduce($text_array, function($carry, $text) {
-        if (empty($carry)) {
-            $carry[] = $text;
-        } else {
-            $lastIndex = count($carry) - 1;
-            if (str_word_count($text) < 500) {
-                if (str_word_count(string: $carry[$lastIndex]) < 500) {
-                    $carry[$lastIndex] .= ' ' . $text;
-                } else {
-                    $carry[] = $text;
-                }
-            } else {
-                $carry[] = $text;
-            }
-        }
-        return $carry;
-    }, []);
-
-    // Find the best passage that matches the user's query
-    $bestPassage = find_best_passage($user_message, $text_array);
-    return $bestPassage;
-
-}
-
-function summarize_pdf() {
-    $pdf_document_talking = false;
-    global $current_task;
-    global $username;
-    $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
-    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
-    $text_array = $pdfReader->getTextFromPages($filePath);
-
-    // Merge passages shorter than 500 words
-    $text_array = array_reduce($text_array, function($carry, $text) {
-        if (empty($carry)) {
-            $carry[] = $text;
-        } else {
-            $lastIndex = count($carry) - 1;
-            if (str_word_count($text) < 500) {
-                if (str_word_count($carry[$lastIndex]) < 500) {
-                    $carry[$lastIndex] .= ' ' . $text;
-                } else {
-                    $carry[] = $text;
-                }
-            } else {
-                $carry[] = $text;
-            }
-        }
-        return $carry;
-    }, []);
-
-    $summaries = [];
-    foreach ($text_array as $text) {
-        $summaries[] = processChatInput('summarize this: ' . $text);
-    }
-
-    //summarize all the summaries with processChatInput
-    $final_summary = '';
-    foreach ($summaries as $summary) {
-        $final_summary .= $summary;
-    }
-    $pdf_document_talking = true;
-    return processChatInput('summarize this in lithuanian and in detail: ' . $final_summary);
-}
-
-
-function get_example_questions_from_pdf() {
-    $pdf_document_talking = false;
-    global $current_task;
-    global $username;
-    $filePath = WP_CONTENT_DIR . '/ITAIAssistant101/default_student_tasks/task1.pdf';
-    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
-    $text_array = $pdfReader->getTextFromPages($filePath);
-
-    // Merge passages shorter than 500 words
-    $text_array = array_reduce($text_array, function($carry, $text) {
-        if (empty($carry)) {
-            $carry[] = $text;
-        } else {
-            $lastIndex = count($carry) - 1;
-            if (str_word_count($text) < 500) {
-                if (str_word_count($carry[$lastIndex]) < 500) {
-                    $carry[$lastIndex] .= ' ' . $text;
-                } else {
-                    $carry[] = $text;
-                }
-            } else {
-                $carry[] = $text;
-            }
-        }
-        return $carry;
-    }, []);
-
-    $questions = [];
-    foreach ($text_array as $text) {
-        $questions[] = processChatInput('generate 5 questions from this passage in lithuanian: ' . $text);
-    }
-
-    //summarize all the summaries with processChatInput
-    $final_questions = '';
-    foreach ($questions as $question) {
-        $final_questions .= $question;
-    }
-    $pdf_document_talking = true;
-    return $final_questions;// processChatInput('remove duplicate questions that have the same meaning leaving only one: ' . $final_questions);
-}
-
-
 function call_embedded_ocr_pdf($message, $fileUri = '', $saveToChatHistory = true) { 
     global $API_KEY;
     global $current_task;
     global $username;
-    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
+    $pdfReader = new GeminiManager($current_task->task_id, $current_task->class_id, $username);
     echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message, saveToChatHistory: $saveToChatHistory);
-    return true;
-}
-
-function call_embedded_ocr_excel($message, $fileUri = '') { 
-    global $API_KEY;
-    global $current_task;
-    global $username;
-    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
-    echo $pdfReader->analyzePdf($API_KEY, $fileUri, $message, saveToChatHistory: true);
     return true;
 }
 
@@ -587,26 +208,16 @@ function getClassUserList($class_id) {
     global $username;
     $current_user = $user_manager->get_user_by_username($username);
     return $classManager->get_class_users($class_id, $username);
-    // if ($current_user->user_role == 'teacher') {
-    //     $returnArray = $user_manager->get_students_by_teacher($username);
-    //     // $returnArray[] = $current_user;
-    //     return $returnArray;
-    // }
-    // else {
-    //     return $classManager->get_class_users($class_id);
-    // }
 }
 
 function removeClassUser($class_id, $username) {
     global $classManager;
-    error_log('Removing user ' . $username . ' from class ' . $class_id);
     $classManager->remove_class_user($class_id, $username);
 }
 
 function acceptUserToClass($class_id, $user_id) {
     global $classManager;
     global $username;
-    error_log('Accepting user ' . $user_id . ' to class ' . $class_id);
     $classManager->insert_class_user($class_id, $user_id, $username);
 }
 
@@ -647,6 +258,13 @@ function deleteFile($filePath) {
     }
 }
 
+function checkIfCurrentUserIsTeacher() : bool {
+    global $user_manager;
+    global $username;
+    $current_user = $user_manager->get_user_by_username($username);
+    return $current_user->user_role === 'teacher';
+}
+
 
 // Main execution logic
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -657,6 +275,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $input = $data['message'];
 
             if($input === 'task-save') { 
+                if (!checkIfCurrentUserIsTeacher()){
+                    echo 'You are not authorized for the action';
+                    exit();
+                }
                 // Access the data from the decoded JSON 
                 $name = $data['name']; 
                 $text = $data['text']; 
@@ -675,12 +297,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $system_prompt = 'You are a helpful and informative bot that answers questions in Lithuanian language using text from the file.'; 
                 $default_summary = $data['default_summary']; 
                 $default_self_check_questions = $data['default_self_check_questions']; 
-                // Log the self-check questions 
-                error_log('default_self_check_questions in PHP: ' . $default_self_check_questions); 
+
                 // Call the saveTask function with the data 
                 echo json_encode(saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $python_data_file, $orange_data_file, $file_uri, $correct_file_uri, $python_data_file_uri, $orange_data_file_uri, $python_program_execution_result, $orange_program_execution_result, $system_prompt, $default_summary, $default_self_check_questions));
             }
             elseif($input === 'task-update') { 
+                if (!checkIfCurrentUserIsTeacher()){
+                    echo 'You are not authorized for the action';
+                    exit();
+                }
                 $name = $data['name']; 
                 $text = $data['text']; 
                 $type = $data['type']; 
@@ -705,31 +330,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $python_data_file_changed = $data['python_data_file_changed'];
                 $orange_data_file_changed = $data['orange_data_file_changed'];
     
-                // just error_log all the data
-                error_log('LOGGING ALL DATA FOR EDITING!!!!');
-                error_log('name: ' . $name);
-                error_log('text: ' . $text);
-                error_log('type: ' . $type);
-                error_log('class_id: ' . $class_id);
-                error_log('file_clean: ' . $file_clean);
-                error_log('file_correct: ' . $file_correct);
-                error_log('python_data_file: ' . $python_data_file);
-                error_log('orange_data_file: ' . $orange_data_file);
-                error_log('file_uri: ' . $file_uri);
-                error_log('correct_file_uri: ' . $correct_file_uri);
-                error_log('python_data_file_uri: ' . $python_data_file_uri);
-                error_log('orange_data_file_uri: ' . $orange_data_file_uri);
-                error_log('python_program_execution_result: ' . $python_program_execution_result);
-                error_log('orange_program_execution_result: ' . $orange_program_execution_result);
-                error_log('system_prompt: ' . $system_prompt);
-                error_log('default_summary: ' . $default_summary);
-                error_log('default_self_check_questions: ' . $default_self_check_questions);
-                error_log('class_id: ' . $class_id);
-                error_log('task_file_changed: ' . $task_file_changed);
-                error_log('correct_task_file_changed: ' . $correct_task_file_changed);
-                error_log('python_data_file_changed: ' . $python_data_file_changed);
-                error_log('orange_data_file_changed: ' . $orange_data_file_changed);
-
                 $task = $taskManager->get_task($task_id, $username);
                 if ($task_file_changed != 1) {
                     $file_uri = $task->task_file_uri;
@@ -747,9 +347,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $orange_data_file_uri = $task->orange_data_file_uri;
                     $orange_data_file = $task->orange_data_file;
                 }
-
-                error_log('file_uri: ' . $file_uri);
-                error_log('file_clean: ' . $file_clean);
 
                 $taskManager->update_task(
                     $task_id,
@@ -801,24 +398,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         elseif ($input === 'task-summary') {
-            $fileUri = urldecode($_POST['fileUri']);
-            if (file_exists($filePath)) {
-                error_log("File exists.");
-            } 
-            else 
-            { 
-                error_log("File does not exist."); 
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
             }
+            $fileUri = urldecode($_POST['fileUri']);
+
             call_embedded_ocr_pdf('Please summarize the text in the PDF file in Lithuanian language', $fileUri, false);
         }
         elseif($input === 'task-questions') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $fileUri = urldecode($_POST['fileUri']);
-            $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
+            $pdfReader = new GeminiManager($current_task->task_id, $current_task->class_id, $username);
             $system_prompt = $prompts['task_questions_system_prompt'];
             $prompt = $prompts['task_questions_prompt'];
             echo $pdfReader->analyzePdfSelfCheck($API_KEY, $fileUri, $prompt, $system_prompt);
         }
         elseif($input === 'task-save') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             // Get the JSON data from the request body
             $json = file_get_contents('php://input');
             $data = json_decode($json, true);
@@ -842,13 +445,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $default_summary = $data['default_summary'];
             $default_self_check_questions = $data['default_self_check_questions'];
         
-            // Log the self-check questions
-            error_log('default_self_check_questions in PHP: ' . $default_self_check_questions);
-        
             // Call the saveTask function with the data
             saveTask($name, $text, $type, $class_id, $file_clean, $file_correct, $python_data_file, $file_uri, $correct_file_uri, $python_data_file_uri, $python_program_execution_result, $system_prompt, $default_summary, $default_self_check_questions);
         }
         elseif($input === 'task-update') { 
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $name = $data['name']; 
             $text = $data['text']; 
             $type = $data['type']; 
@@ -868,27 +472,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $default_self_check_questions = $data['default_self_check_questions']; 
             $class_id = $data['class_id']; 
             $task_id = $data['task_id'];
-
-            // just error_log all the data
-            error_log('LOGGING ALL DATA FOR EDITING!!!!');
-            error_log('name: ' . $name);
-            error_log('text: ' . $text);
-            error_log('type: ' . $type);
-            error_log('class_id: ' . $class_id);
-            error_log('file_clean: ' . $file_clean);
-            error_log('file_correct: ' . $file_correct);
-            error_log('python_data_file: ' . $python_data_file);
-            error_log('orange_data_file: ' . $orange_data_file);
-            error_log('file_uri: ' . $file_uri);
-            error_log('correct_file_uri: ' . $correct_file_uri);
-            error_log('python_data_file_uri: ' . $python_data_file_uri);
-            error_log('orange_data_file_uri: ' . $orange_data_file_uri);
-            error_log('python_program_execution_result: ' . $python_program_execution_result);
-            error_log('orange_program_execution_result: ' . $orange_program_execution_result);
-            error_log('system_prompt: ' . $system_prompt);
-            error_log('default_summary: ' . $default_summary);
-            error_log('default_self_check_questions: ' . $default_self_check_questions);
-            error_log('class_id: ' . $class_id);
 
             $taskManager->update_task(
                 $task_id,
@@ -912,22 +495,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
         }
         elseif($input === 'remove-task-file') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $fileName = $_POST['file-name'];
             $filePath = WP_CONTENT_DIR . "/ITAIAssistant101/" . $username . "/TASK/" . $fileName;
             deleteFile($filePath);
         }
         elseif($input === 'delete-task-files-on-close') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $currentTaskFilePath = $_POST['current-task-file-path'];
             $currentCorrectTaskFilePath = $_POST['current-correct-task-file-path'];
             $currentPythonDataFilePath = $_POST['current-python-data-file-path'];
             $currentOrangeDataFilePath = $_POST['current-orange-data-file-path'];
             $classId = $_POST['class-id'];
-
-            // error log all the file paths
-            // error_log('currentTaskFilePath: ' . $currentTaskFilePath);
-            // error_log('currentCorrectTaskFilePath: ' . $currentCorrectTaskFilePath);
-            // error_log('currentPythonDataFilePath: ' . $currentPythonDataFilePath);
-            // error_log('currentOrangeDataFilePath: ' . $currentOrangeDataFilePath);
 
             // check if user is the main teacher of the class
             $class = $classManager->get_class_by_id($classId);
@@ -943,6 +528,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         }
         elseif($input === 'delete-task') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $taskId = $_POST['task-id'];
             $classId = $_POST['class-id'];
             $the_task = $taskManager->get_task($taskId, $username);
@@ -1038,9 +627,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $users = array_merge($users, $students);
 
+            // remove user_password, api_key and temporary_password from the array
+            for ($i = 0; $i < count($users); $i++) {
+                unset($users[$i]->user_password);
+                unset($users[$i]->api_key);
+                unset($users[$i]->temporary_password);
+            }
+
             echo json_encode($users);
         }
         elseif($input === 'reset-user-password'){
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $user_id = $_POST['user_id'];
             //check if $username is class main teacher
             $class_id = $_POST['classId'];
@@ -1059,6 +659,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         elseif($input === 'check-if-class-is-not-main-for-teacher')
         {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $class_id = $_POST['class_id'];
             if ($classManager->check_if_teacher_and_class_is_default($username, $class_id)) {
                 echo "false";
@@ -1069,6 +673,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         elseif($input === 'get-teacher-unadded-students')
         {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $class_id = $_POST['class_id'];
             // check if request is from the teacher of the class
             $class = $classManager->get_class_by_id($class_id);
@@ -1080,6 +688,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode($students);
         }
         elseif ($input === 'add-users-to-class') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $class_id = $_POST['class_id'];
             $users = $_POST['users'];
             $class = $classManager->get_class_by_id($class_id);
@@ -1087,7 +699,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode('not allowed');
                 exit();
             }
-            error_log('users before json decode: ' . $users);
             $users = json_decode(stripslashes($users));
             $classManager->add_users_to_class($class_id, $users);
             echo json_encode('success');
@@ -1096,12 +707,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         elseif($input === 'delete-user-from-class')
         {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $class_id = $_POST['class_id'];
             $user_id = $_POST['user_id'];
             removeClassUser($class_id, $user_id);
         }
         elseif($input === 'accept-user-to-class')
         {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $class_id = $_POST['class_id'];
             $user_id = $_POST['user_id'];
             acceptUserToClass($class_id, $user_id);
@@ -1110,27 +729,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $old_password = sanitize_text_field($_POST['old_password']);
             $new_password = sanitize_text_field($_POST['new_password']);
             $user = $user_manager->get_user_by_username($username);
-            error_log('password change attempt');
             if ($user && password_verify($old_password, $user->user_password)) {
                 $jwt_token = $api_connector->test_connection($user->user_username, $user->user_role, false);
 
                 if ($jwt_token) {
-                    error_log('password change success');
                     $user_manager->update_password($username, $new_password);
                     echo "success";
                     return true;
                 } else {
-                    error_log('password change fail');
                     echo "error";
                     return false;
                 }
             } else {
-                error_log('password change fail: NOT VERIFIED');
                 echo "error";
                 return false;
             }
         }
         elseif($input === 'add-new-class') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $class_name = $_POST['class_name'];
             $result = $classManager->insert_class($class_name, $username, false);
             if ($result) {
@@ -1139,6 +758,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             return json_encode('Class not added');
         }
         elseif ($input === 'delete-class') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $class_id = $_POST['class_id'];
             $class = $classManager->get_class_by_id($class_id);
             if ($class->class_main_teacher == $username) {
@@ -1160,6 +783,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             return false;
         }
         elseif ($input === 'edit-class') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $class_id = $_POST['class_id'];
             $class_name = $_POST['class_name'];
             $class = $classManager->get_class_by_id($class_id);
@@ -1198,14 +825,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         elseif($input === 'import-tasks') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $class_id = $_POST['class_id'];
             // take the file as file
             $file = $_FILES['file'];
             // unzip the file and read task_data.json
             $zip = new ZipArchive;
             $res = $zip->open($file['tmp_name']);
-            // TODO: implement the import tasks logic for files
-            // Create a temporary directory for extraction
             $temp_dir = WP_CONTENT_DIR . "/ITAIAssistant101/$username/TEMP/task_import_" . uniqid();
             if (!is_dir(dirname($temp_dir))) {
                 mkdir(dirname($temp_dir), 0777, true);
@@ -1228,7 +857,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         foreach ($task_data as $task) {
 
 
-                            error_log('Processing task: ' . $task['task_name']);
                             $files_to_process = [
                                 ['path' => $task['task_file_clean'], 'type' => 'task_file'],
                                 ['path' => $task['task_file_correct'], 'type' => 'correct_file'],
@@ -1245,14 +873,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 if (!empty($file_info['path'])) {
                                     $filename = basename($file_info['path']);
                                     $source_path = "{$temp_dir}/{$filename}";
-                                    // error_log everything contained in $temp_dir
-                                    error_log('Temp dir contents: ' . json_encode(scandir($temp_dir)));
-
-                                    error_log('Processing file: ' . $source_path);
                                     if (file_exists($source_path)) {
-                                        // Create temporary file
-                                        // $temp_upload = tempnam(sys_get_temp_dir(), 'upload_');
-                                        // if (copy($source_path, $temp_upload)) {
                                         $fileArray = [
                                             'name' => basename($source_path),
                                             'tmp_name' => $source_path,
@@ -1260,26 +881,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             'size' => filesize($source_path),
                                             'error' => 0
                                         ];
-                                            // error_log('File info: ' . json_encode($fileArray));
-                                        // } else {
-                                        //     error_log('Failed to create temporary file from: ' . $source_path);
-                                        //     continue;
-                                        // }
                                         $result = uploadFile($fileArray, true);
                                         
                                         if ($result) {
                                             // $upload_result = json_decode($result, true);
                                             $new_paths[$file_info['type']] = $result[0];
                                             $new_uris[$file_info['type']] = $result[1];
-                                            error_log('File uploaded successfully: ' . $file_info['type']);
                                         }
                                         else {
-                                            error_log('Failed to upload file: ' . $file_info['type']);
                                             $filesUploadError = true;
                                         }
                                     }
                                     else {
-                                        error_log('File does not exist: ' . $source_path);
                                         $filesUploadError = true;
                                     }
                                 }
@@ -1322,8 +935,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
         }       
         elseif($input === 'change-api-key') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $new_api_key = sanitize_text_field($_POST['new_api_key']);
-            error_log('setting api key to: ' . $new_api_key);
             if ($user_manager->update_user_api_key($username, $new_api_key)){
                 echo 'success';
             }
@@ -1333,15 +949,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
         elseif($input === 'task-file') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
 
             $result = uploadFile($_FILES['file']);
             echo json_encode($result);
         }
         elseif($input === 'python-data-file') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $result = uploadFile($_FILES['file']);
             echo json_encode($result);
         }
         elseif($input === 'orange-data-file') {
+            if (!checkIfCurrentUserIsTeacher()){
+                echo 'You are not authorized for the action';
+                exit();
+            }
             $result = uploadFile($_FILES['file']);
             echo json_encode($result);
         }
@@ -1352,23 +980,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $usingExternalInfo = $_POST['usingExternalInfo'];
             if ($usingExternalInfo == 'true') {
                 $usingExternalInfo = true;
-                error_log('Using external info set to true ' . $usingExternalInfo);
 
             }
             else {
                 $usingExternalInfo = false;
-
-                error_log('Using external info set to false ' . $usingExternalInfo);
             }
             $task = $taskManager->get_task($task_id, $username);
             $user_username = $username;
             $solution_file = $result[0];
             $solution_file_uri = $result[1];
             $taskManager->insert_student_task_solution($task_id, $class_id, $user_username, $solution_file, $solution_file_uri);
-            $pdfReader = new PdfReader($task_id, $class_id, $username);
+            $pdfReader = new GeminiManager($task_id, $class_id, $username);
             $correct_solution_uri = $task->clean_task_file_uri;
             if ($task->task_type == 'Excel') {
-                // TODO fix old file uri problem in other file types as well
                 $prompt = $prompts['done_excel_task_prompt'];
                 if (!$pdfReader->fileExists($API_KEY, $task->clean_task_file_uri)) {
                     $filePath  = $task->task_file_correct;
@@ -1384,7 +1008,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo $pdfReader->analyzeExcel($API_KEY, $solution_file_uri, $correct_solution_uri, $prompt);
                 return "Your uploaded solution: {$solution_file}";
             } elseif ($task->task_type == 'Python') {
-                // $prompt = $prompts['done_python_task_prompt'];
                 if (file_exists($solution_file)) {
                     $prompt = file_get_contents($solution_file);
                 }
@@ -1426,17 +1049,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $usingExternalInfo = $_POST['usingExternalInfo'];
                 if ($usingExternalInfo == 'true') {
                     $usingExternalInfo = true;
-                    error_log('Using external info set to true ' . $usingExternalInfo);
-
                 }
                 else {
                     $usingExternalInfo = false;
-
-                    error_log('Using external info set to false ' . $usingExternalInfo);
                 }
 
                 if ($current_task->task_type == 'PDF') {
-                    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
+                    $pdfReader = new GeminiManager($current_task->task_id, $current_task->class_id, $username);
                     $fileUri = $current_task->task_file_uri;
                     if (!$pdfReader->fileExists($API_KEY, $fileUri)) {
                         $fileUri = $pdfReader->uploadFileNew($API_KEY, $current_task->task_file_clean, 'task111.pdf')[0];
@@ -1445,7 +1064,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     call_embedded_ocr_pdf( $prompts["ask_pdf_prompt1"] . $input . $prompts["ask_pdf_prompt2"], $fileUri);
                 }
                 elseif ($current_task->task_type == 'Excel') {
-                    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
+                    $pdfReader = new GeminiManager($current_task->task_id, $current_task->class_id, $username);
                     $taskManager = new TaskManager();
                     $student_solution = $taskManager->get_first_student_task_solution($current_task->task_id, $current_task->class_id, $username);
                     //check if student solution exists
@@ -1457,17 +1076,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $fileUri2 = $current_task->clean_task_file_uri;
                     if($using_student_solution) {
                         $student_solutionFileUri = $student_solution->solution_file_uri;
-                        // if (!$pdfReader->fileExists($API_KEY, $student_solutionFileUri)) {
                         $filePath  = $student_solution->solution_file;
                         $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
                         $fileName = pathinfo($filePath, PATHINFO_FILENAME);
                         $excel_reader = new ExcelReader($filePath);
                         $excel_data = $excel_reader->readDataWithCoordinates();
-                        // move excel_data to text file with the same name to the same path but the extension is .txt
                         $textFilePath = str_replace($fileExtension, 'txt', $filePath);
                         $student_solutionFileUri = $pdfReader->uploadFileNew($API_KEY, $textFilePath, $fileName . '.txt', 'text/plain')[0];
                         $taskManager->update_student_task_solution($student_solution->solution_id, $current_task->task_id, $current_task->class_id, $student_solution->user_username, $student_solution->solution_file, $student_solutionFileUri);
-                        // }
                     }
                     else {
                         if (!$pdfReader->fileExists($API_KEY, $fileUri1)) {
@@ -1506,10 +1122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     else {
                         echo $response;
                     }
-                    // echo $response;
                 }
                 elseif($current_task->task_type == 'Python') {
-                    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
+                    $pdfReader = new GeminiManager($current_task->task_id, $current_task->class_id, $username);
                     $response = $pdfReader->analyzePythonQuestion($API_KEY, $input);
                     if ($usingExternalInfo) {
                         $response = $pdfReader->analyzeUrlEmbeddingsQuestion($API_KEY, '', '', $response, "Python", false);
@@ -1517,10 +1132,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     else {
                         echo $response;
                     }
-                    // echo $response;
                 }
                 elseif($current_task->task_type == 'Orange') {
-                    $pdfReader = new PdfReader($current_task->task_id, $current_task->class_id, $username);
+                    $pdfReader = new GeminiManager($current_task->task_id, $current_task->class_id, $username);
                     $response = $pdfReader->analyzeOrangeQuestion($API_KEY, $input);
                     if ($usingExternalInfo) {
                         $response = $pdfReader->analyzeUrlEmbeddingsQuestion($API_KEY, $current_task->orange_data_file_uri, $current_task->orange_program_execution_result, $response, "Orange", false);
@@ -1529,10 +1143,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         echo $response;
                     }
                     return $response;
-                }
-                else {
-                    $response = processChatInput($input);
-                    echo $response;
                 }
         }
     } elseif (isset($_FILES['file'])) {
@@ -2070,7 +1680,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </section>
             <footer class="modal-card-foot">
                 <button class="button" onclick="closeSettingsModal()"><?php echo $lang['cancel']; ?></button>
-                <!-- <button class="button is-primary" onclick="saveSettings()"><?php echo $lang['save']; ?></button> -->
             </footer>
         </div>
     </div>
@@ -2122,7 +1731,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         let questionsGlobal = [];
 
         function displayMessage(text, sender) {
-            console.log(text, sender);
             const messageContainer = document.createElement('div');
             messageContainer.classList.add('message-container', sender);
             const messageBubble = document.createElement('div');
@@ -2247,15 +1855,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .then(response => response.text())
             .then(text => {
                 document.getElementById('taskQuestions').value = text;
-                console.log("before AI generating: ")
-                for (let i = 0; i < questionsGlobal.length; i++) {
-                    console.log(questionsGlobal[i].question);
-                }
                 questionsGlobal = questionsGlobal.concat(JSON.parse(text).questions);
-                console.log("after AI generating: " + questionsGlobal)
-                for (let i = 0; i < questionsGlobal.length; i++) {
-                    console.log(questionsGlobal[i].question);
-                }
                 // const questions = JSON.parse(text).questions;
                 const taskQuestionsElement = document.getElementById('taskQuestions');
                 createSelfCheckAccordion(questionsGlobal, taskQuestionsElement);
@@ -2438,7 +2038,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 //hide file upload near chat message send button
                 document.getElementById('fileInputDiv').style.display = 'none';
                 try {
-                    console.log('json before parse:', currentTaskJson.default_self_check_questions);
                     questions = JSON.parse(currentTaskJson.default_self_check_questions).questions; //.replace(/\\\"/g, '"')).questions;
                     waitForMessageBubblesToAddSelfCheckQuestions(questions);
                 } catch (e) {
@@ -2613,7 +2212,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 currentTaskJson = task;
                 updateChatUI();
                 highlightCurrentTask();
-                console.log('Current task: ', currentTaskJson.task_type);
                 if (typeof currentTaskJson.task_type !== 'undefined' && currentTaskJson.task_type != '') {
                     enableChatInputs();
                     toggleLoadTaskTypeFields();
@@ -2667,7 +2265,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         })
                         .then(response => response.text())
                         .then(result => {
-                            // console.log('Chat history cleaned:', result);
                             updateChatUI();
                             chatContainer.innerHTML = '';
                             bootbox.alert("<?php echo $lang['chat_history_cleaned']; ?>");
@@ -2703,7 +2300,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function getTasksList(classId) {
-            console.log('Fetching tasks for class ' + classId);
             fetch('', {
                 method: 'POST',
                 headers: {
@@ -2717,7 +2313,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const taskList = document.querySelector('.task-list');
                 // taskList.innerHTML = '';
                 tasks.forEach(task => {
-                    console.log(task);
                     const newTaskItem = document.createElement('div');
                     newTaskItem.classList.add('task-item');
                     newTaskItem.id = 'task-' + task.task_id;
@@ -2858,7 +2453,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
         function getClassList() {
-            console.log('Fetching class list');
             fetch('', {
                 method: 'POST',
                 headers: {
@@ -2871,7 +2465,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const classList = document.querySelector('#class-list');
                 classList.innerHTML = '';
                 classes.forEach(classItem => {
-                    console.log(classItem);
                     const newClassItem = document.createElement('tr');
 
                     // Make row text bold if it's the last used class
@@ -2955,7 +2548,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function getClassUserList(classId) {
-            console.log('Fetching class list');
             fetch('', {
                 method: 'POST',
                 headers: {
@@ -2968,9 +2560,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const classUserList = document.querySelector('#class-user-list');
                 classUserList.innerHTML = '';
                 users.forEach(userItem => {
-                    console.log(userItem);
                     const newUserItem = document.createElement('tr');
-                    // userItem.is_current_user
                     // Make row text bold if it's the last used class
                     if (userItem.is_current_user) {
                         newUserItem.style.fontWeight = 'bold';
@@ -3054,11 +2644,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 body: 'message=check-if-class-is-not-main-for-teacher&class_id=' + classId,
             }).then(response => response.text())
             .then(result => {
-                console.log('checkIfClassIsNotMainForTeacher result: ' + result);
                 if (result.includes('true')) {
-                    console.log('Class is not main for teacher');
                     document.getElementById('openAddUsersModal').style.display = 'block';
-                    // set openAddUsersModal() function as onclick
                     document.getElementById('openAddUsersModal').onclick = function() { 
                         openAddUsersModal(classId);
                     };
@@ -3218,15 +2805,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('taskName').value = task.task_name;
             document.getElementById('taskType').value = task.task_type;
             toggleTaskTypeFields();
-            // parse only the filename and extension from this:
-            // "/home/u513267982/domains/techtastetinker.com/public_html/wp-content/ITAIAssistant101/TeaTea/TASK/TeaTea_20250121234702_AML3_Preprocessing_and_unsupervised_classics.pdf"
             let taskFileSplitted = '';
             if (task.task_file_clean != '' && task.task_file_clean != null) {
                 taskFileSplitted = task.task_file_clean.split('/').pop();
             }
-            console.log('!!!TASKFILE!!!!' + taskFileSplitted);
-            console.log('!!!TASKFILE CLEAN!!!!' + task.task_file_clean);
-            
+       
             if (taskFileSplitted == '') {
                 document.getElementById('taskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
             } else {
@@ -3277,18 +2860,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     document.getElementById('removeOrangeDataFileButton').style.display = 'block';
                 }
             }
-            // const taskFileCorrect = task.task_file_correct.split('/').pop();
-            // document.getElementById('correctTaskFile').value.nextElementSibling.innerText = taskFileCorrect;
-            // const correctPythonDataFile = task.python_data_file.split('/').pop();
-            // document.getElementById('correctPythonDataFile').value.nextElementSibling.innerText = correctPythonDataFile;
             const correctPythonProgramExecutionResult = task.python_program_execution_result;
             document.getElementById('correctPythonProgramExecutionResult').value = correctPythonProgramExecutionResult;
-            // const correctOrangeDataFile = task.orange_data_file.split('/').pop();
-            // document.getElementById('correctOrangeDataFile').value.nextElementSibling.innerText = correctOrangeDataFile;
             const correctOrangeProgramExecutionResult = task.orange_program_execution_result;
             document.getElementById('correctOrangeProgramExecutionResult').value = correctOrangeProgramExecutionResult;
-            // task type
-            // description
             document.getElementById('taskDescription').value = task.task_text;
             document.getElementById('taskSummary').value = task.default_summary;
             document.getElementById('taskQuestions').value = task.default_self_check_questions;
@@ -3348,9 +2923,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 },
                 callback: function (result) {
-                    console.log('remove file result: ' + result);
                     if (result) {
-                        console.log('passed fieldtype: ' + fieldType);
                         var selectedFileName = '';
                         if (fieldType === 'regular') {
                             selectedFileName = document.getElementById('taskFile').nextElementSibling.innerText;
@@ -3361,8 +2934,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         } else if (fieldType === 'data-orange') {
                             selectedFileName = document.getElementById('correctOrangeDataFile').nextElementSibling.innerText;
                         }
-                        console.log('delete file: ' + selectedFileName);
-                        console.log('parsed file: ' + document.getElementById('correctPythonDataFile').nextElementSibling.innerText)
                         fetch('', {
                             method: 'POST',
                             headers: {
@@ -3372,7 +2943,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         })
                         .then(response => response.text())
                         .then(result => {
-                            console.log('removeTaskFile result: ' + result);
                             if (result.includes('success')) {
                                 bootbox.alert("<?php echo $lang['file_removed']; ?>");
                                 if (fieldType === 'regular') {
@@ -3501,9 +3071,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             }
                                         },
                                         callback: function (result) {
-                                            console.log('Result:', result);
-                                            console.log('Old password:', oldPassword);
-                                            console.log('New password:', newPassword);
                                             if (result) {
                                                 fetch('', {
                                                     method: 'POST',
@@ -3720,7 +3287,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 .then(response => response.text())
                 .then(result => {
                     hideLoadingModal();
-                    console.log('tasks import result: ' + result);
                     if (result.includes('success')) {
                         bootbox.alert("<?php echo $lang['tasks_imported_successfully']; ?>");
                         getTasksList(currentClassId);
@@ -3829,23 +3395,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 taskFileDiv.style.display = 'block';
             } 
             
-            // const useDocumentInformationDiv = document.getElementById('useDocumentInformationDiv');
-            // if (useDocumentInformationDiv) {
-            //     if (taskType === 'PDF') {
-            //         useDocumentInformationDiv.style.display = 'none';
-            //     } else {
-            //         useDocumentInformationDiv.style.display = 'block';
-            //     }
-            // }
-            
-            
-            // if (taskType === 'Python') {
-            //     //hide taskFileDiv
-            //     // taskFileDiv.style.display = 'none';
-            // }
-
-
-
             document.getElementById('taskFile').value = '';   
             document.getElementById('taskFile').nextElementSibling.innerText = '<?php echo $lang['upload_file_for_task']; ?>';
             document.getElementById('correctTaskFile').value = '';
@@ -3855,12 +3404,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function toggleLoadTaskTypeFields()
         {
             taskType = currentTaskJson.task_type;
-            console.log('taskType:', taskType);
             const taskFile = document.getElementById('fileInput');
             const fileInputTaskDoneLabel = document.getElementById('fileInputTaskDoneLabel');
             if (taskType === 'Python') {
-                // set taskFile invisible
-                // taskFile.style.display = 'none';
                 fileInput.setAttribute('accept', '.py,.txt');
                 fileInputTaskDoneLabel.innerText = '<?php echo $lang['upload_python_file']; ?>';
             }
@@ -3882,16 +3428,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (steps[currentStep - 1] === 1) {
                 const fileInput = document.getElementById('taskFile');
                 const fileName = fileInput.labels[0].innerText;
-                // const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 const correctFileInput = document.getElementById('correctTaskFile');
                 const correctFileName = correctFileInput.labels[0].innerText;
-                // const correctFileName = correctFileInput.files.length > 0 ? correctFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 const pythonDataFileInput = document.getElementById('correctPythonDataFile');
                 const pythonDataFileName = pythonDataFileInput.labels[0].innerText;
-                // const pythonDataFileName = pythonDataFileInput.files.length > 0 ? pythonDataFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 const orangeDataFileInput = document.getElementById('correctOrangeDataFile');
                 const orangeDataFileName = orangeDataFileInput.labels[0].innerText;
-                // const orangeDataFileName = orangeDataFileInput.files.length > 0 ? orangeDataFileInput.files[0].name : '<?php echo $lang['no_file_selected']; ?>';
                 document.getElementById('displayTaskFile').innerText = fileName;
                 document.getElementById('displayTaskCorrectFile').innerText = correctFileName;
                 document.getElementById('displayTaskPythonDataFile').innerText = pythonDataFileName;
@@ -3973,32 +3515,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 document.getElementById('finalTaskType').innerText = document.getElementById('taskType').value;
                 document.getElementById('finalTaskDescription').innerText = document.getElementById('taskDescription').value;
                 document.getElementById('finalTaskSummary').innerText = document.getElementById('taskSummary').value;
-                
-                // document.getElementById('finalTaskQuestions').innerText = document.getElementById('taskQuestions');
-                // create a new div element with custom id and add that inside finalTaskQuestions
+                                // create a new div element with custom id and add that inside finalTaskQuestions
                 const finalQuestionsContainer = document.createElement('div');
                 finalQuestionsContainer.id = 'finalQuestionsContainer';
                 document.getElementById('finalTaskQuestions').appendChild(finalQuestionsContainer);
                 createSelfCheckAccordion(questionsGlobal, finalQuestionsContainer, true);
                 
-                
-                
-                // document.getElementById('finalTaskQuestions').innerText = document.getElementById('taskQuestions');
-                // Wait for finalTaskQuestions to be initialized
-                // const waitForElement = setInterval(() => {
-                //     const finalTaskQuestions = document.getElementById('finalTaskQuestions');
-                //     if (finalTaskQuestions) {
-                //         clearInterval(waitForElement);
-                //         createSelfCheckAccordion(questionsGlobal, finalTaskQuestions, true);
-                //     }
-                // }, 100); // Check every 100ms
-
-                // // Add a timeout to prevent infinite waiting
-                // setTimeout(() => {
-                //     clearInterval(waitForElement);
-                //     console.error('Timeout waiting for finalTaskQuestions element');
-                // }, 5000); // Stop checking after 5 seconds
-
                 document.getElementById('step4').style.display = 'block';
                 document.getElementById('step3').style.display = 'none';
 
@@ -4076,9 +3598,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 orange_data_file_changed: orangeDataFileChanged
             };
 
-            // Log the task questions
-            console.log('Task questions before passing to PHP:', taskQuestions);
-
             // Send the data using fetch
             fetch('', {
                 method: 'POST',
@@ -4150,7 +3669,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function selectClass(classId) {
-            // bootbox.alert('<?php echo $lang['you_selected']; ?> ' + classId);
             closeClassModal();
             getClassUserList(classId);
             <?php if ($current_user->user_role === 'teacher') { ?>
@@ -4170,8 +3688,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             })
             .then(response => response.json())
             .then(data => {
-                console.log(data);
-                // IF data is empty, show a message that there are no students to add
                 if (data.length === 0) {
                     bootbox.alert('<?php echo $lang['no_students_to_add']; ?>');
                     return;
@@ -4187,7 +3703,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     value: [],
                     inputOptions: inputOptions,
                     callback: function (result) {
-                        console.log(result);
                         if (result) {
                             fetch('', {
                                 method: 'POST',
@@ -4198,7 +3713,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             })
                             .then(response => response.text())
                             .then(result => {
-                                console.log(result);
                                 if (result.includes("success")) {
                                     getClassUserList(classId);
                                     bootbox.alert("<?php echo $lang['users_added_to_class_successfully']; ?>");
@@ -4221,7 +3735,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function createSelfCheckAccordion(questions, elementToAddAfter, displayOnly = false) {
 
             existingAccordion_cards = document.getElementsByClassName('ITAIAssistant101_accordion_card');
-            console.log('existingAccordion_cards:', existingAccordion_cards.length);
             
             let accordionContainer = null;
 
@@ -4232,7 +3745,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 accordionContainer = document.getElementById('accordion');
             }
             let strongText = null;
-            // let addStrongText = true;
             if (accordionContainer != null && !displayOnly) {
                 accordionContainer.innerHTML = '';
             }
@@ -4251,11 +3763,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 else {
                     accordionContainer.id = 'accordion';
                 }
-                console.log('created accordionContainer');
             }
             else {
-                // addStrongText = false;
-                // strongText = document.getElementById('selfCheckQuestionsText_itaiassistant101');
                 if (!displayOnly) {
                     accordionContainer = existingAccordion_cards[0].parentNode;
                     accordionContainer.innerHTML = '';
@@ -4267,13 +3776,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     accordionContainer = document.createElement('div');
                     accordionContainer.id = 'accordionDisplayOnly';
-                    console.log('accordionContainer:', accordionContainer);
                 }
             }
 
             questions.forEach((q, index) => {
                 // print out the whole q,decoded
-                console.log('q:', q);
 
                 const card = document.createElement('div');
                 card.classList.add('card');
@@ -4282,11 +3789,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     card.classList.add('ITAIAssistant101_accordion_card');
                 }
 
-                console.log('before cardHeader');
                 const cardHeader = document.createElement('div');
                 cardHeader.classList.add('card-header');
                 cardHeader.id = `heading${index}`;
-                console.log('after cardHeader');
 
                 const h5 = document.createElement('h5');
                 h5.classList.add('mb-0');
@@ -4303,13 +3808,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 cardHeader.appendChild(h5);
                 card.appendChild(cardHeader);
 
-                console.log('before collapseDiv');
                 const collapseDiv = document.createElement('div');
                 collapseDiv.id = `collapse${index}`;
                 collapseDiv.classList.add('collapse');
                 collapseDiv.setAttribute('aria-labelledby', `heading${index}`);
                 collapseDiv.setAttribute('data-parent', '#' + accordionContainer.id);
-                console.log('after collapseDiv');
 
                 const cardBody = document.createElement('div');
                 cardBody.classList.add('card-body');
@@ -4344,7 +3847,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 });
                                                 questionsGlobal = questions;
                                                 document.getElementById('taskQuestions').value = JSON.stringify({ questions }, null, 2);
-                                                // accordionContainer.innerHTML = '';
                                                 createSelfCheckAccordion(questions, elementToAddAfter);
                                             }
                                         }
@@ -4367,7 +3869,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 });
                                 questionsGlobal = questions;
                                 document.getElementById('taskQuestions').value = JSON.stringify({ questions }, null, 2);
-                                // accordionContainer.innerHTML = '';
                                 createSelfCheckAccordion(questions, elementToAddAfter);
                             }
                         });
@@ -4397,7 +3898,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             questions.push({ question: newQuestion, answer: newAnswer, order_number: questions.length + 1.0 });
                                             questionsGlobal = questions;
                                             document.getElementById('taskQuestions').value = JSON.stringify({ questions }, null, 2);
-                                            // accordionContainer.innerHTML = '';
                                             createSelfCheckAccordion(questions, elementToAddAfter);
                                         }
                                     }
@@ -4467,11 +3967,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         function handleSwitchChange(element) {
             if (element.checked) {
-                console.log("Switch is ON");
                 usingExternalInfo = true;
                 // Add actions to perform when the switch is ON
             } else {
-                console.log("Switch is OFF");
                 usingExternalInfo = false;
                 // Add actions to perform when the switch is OFF
             }
@@ -4533,7 +4031,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php }?>
                 getTiedRequestsCount();
                 sendIntroMessage();
-                console.log('Chat history loaded');
                 getCurrentClassId();
                 getCurrentTask();
             }, 2000); // 2000 milliseconds = 2 seconds

@@ -2,7 +2,7 @@
 
 class GeminiModelSwitcher {
     private $api_key;
-    private $models_list = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    private $models_list = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro"];
 
     public function __construct($api_key = '') {
         $this->api_key = $api_key;
@@ -35,7 +35,6 @@ class GeminiModelSwitcher {
             $model = $models[$attempt % count($models)]; // Cycle through models
             $api_key = $this->getApiKey();
             $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$api_key}";
-            error_log('calling gemini with model: ' . $model);
             $headers = [
                 'Content-Type: application/json'
             ];
@@ -58,7 +57,6 @@ class GeminiModelSwitcher {
                     'error' => null
                 ];
             } else {
-                error_log("Gemini API request failed with status code: " . $http_code . " and response: " . $response . " using model: " . $model);
                 $attempt++;
                 // Consider adding a delay here before the next attempt
                 sleep(1); // Wait for 1 second before retrying

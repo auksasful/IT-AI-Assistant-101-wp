@@ -87,7 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </head>
 <body>
 <div class="container" style="max-width: 500px; margin-top: 50px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
-
+    <div class="top-user-info" style="font-size: 0.8em; text-align: center; padding: 0.5em; display: flex; flex-direction: column;">
+        <span><b><?php echo $lang['username']; ?>:</b> <?php echo $username; ?></span>
+        <span><b><?php echo $lang['role']; ?>:</b> <?php echo ($current_user->user_role == 'teacher') ? $lang['teacher'] : $lang['student']; ?></span>
+    </div>
     <h1><?php echo $lang['you_have_to_change_your_password'] ?></h1>
     <form method="POST">
         <div class="form-group">

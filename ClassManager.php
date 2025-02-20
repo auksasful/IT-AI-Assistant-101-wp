@@ -219,7 +219,6 @@ class ClassManager {
                 )
                 AND user_username != %s";
         $results = $this->db->get_results($this->db->prepare($sql, $default_class_id, $class_id, $username));
-        error_log('get_teacher_unadded_students results: ' . print_r($results, true));
         return $results;
     }
 
@@ -245,7 +244,6 @@ class ClassManager {
         global $wpdb;
         $table_name = "{$wpdb->prefix}it_ai_assistant101_class_user";
         $result = [];
-        error_log('add_users_to_class users: ' . print_r($users, true));
         foreach ($users as $username) {
             $wpdb->insert(
                 $table_name,
@@ -261,15 +259,6 @@ class ClassManager {
             }
         }
         return $result;
-    }
-
-    public function set_last_used_class_id($user_username, $class_id) {
-        $table_name = $this->db->prefix . 'it_ai_assistant101_user';
-        $this->db->update(
-            $table_name,
-            array('last_used_class_id' => $class_id),
-            array('user_username' => $user_username)
-        );
     }
 }
 ?>

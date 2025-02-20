@@ -36,24 +36,19 @@ if ($class_id) {
 
 
 // Debug statement to check the script execution
-error_log('joinclass.php script executed');
 
 $tied_teacher = $user_manager->get_tied_teacher($username);
 
 if (isset($_POST['message'])) {
     $message = $_POST['message'];
-    error_log('Message: ' . $message);
     if ($message === 'join-class') {
-        error_log('Joining class');
         if (isset($_POST['teacher_username'])) {
             joinClass($_POST['teacher_username']);
         }
     }
     elseif ($message === 'cancel-tied-request') {
-        error_log('Cancelling tied request');
         $user_manager->update_user_tied_request($username, '', false);
         echo $lang['request_cancelled'];
-        error_log('Tied request cancelled');
         exit();
     }
 }
@@ -66,12 +61,10 @@ function joinClass($teacher_username) {
     if ($teacher_user) {
         $user_manager->update_user_tied_request($username, $teacher_username, true);
         echo $teacher_user->user_username;
-        error_log('Class join request successful');
         exit();
     }
     else {
         echo $lang['teacher_not_found'];
-        error_log($lang['teacher_not_found']);
         exit();
     }
 }
@@ -156,6 +149,10 @@ function joinClass($teacher_username) {
 
 <div class="container">
     <div id="itaiassistant101_join_class_Form">
+        <div class="top-user-info" style="font-size: 0.8em; text-align: center; padding: 0.5em; display: flex; flex-direction: column;">
+            <span><b><?php echo $lang['username']; ?>:</b> <?php echo $username; ?></span>
+            <span><b><?php echo $lang['role']; ?>:</b> <?php echo ($current_user->user_role == 'teacher') ? $lang['teacher'] : $lang['student']; ?></span>
+        </div>
         <?php if(empty($current_user->tied_request)): ?>
             <h2><?php echo $lang['join_class_to_start'] ?></h2>
             <div class="form-group">
@@ -193,16 +190,6 @@ function joinClass($teacher_username) {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
 <script>
-    $(document).ready(function() {
-
-      
-    });
-
-    $(document).ready(function() {
-
-      
-    });
-
     function joinClass() {
         teacherUsername = document.getElementById('teacher_username').value;
         fetch('', {
@@ -214,8 +201,6 @@ function joinClass($teacher_username) {
         })
         .then(response => response.text())
         .then(message => {
-            console.log(message);
-            console.log("<?php echo $lang['teacher_not_found']; ?>");
             if (message === "<?php echo $lang['teacher_not_found']; ?>") {
                 bootbox.alert('<?php echo $lang['teacher_not_found']; ?>');
                 return;
@@ -257,7 +242,6 @@ function joinClass($teacher_username) {
                     })
                     .then(response => response.text())
                     .then(message => {
-                        console.log(message);
                         if (message.includes("<?php echo $lang['request_cancelled']; ?>")) {
                             bootbox.alert({
                                 message: "<?php echo $lang['request_cancelled']; ?>",

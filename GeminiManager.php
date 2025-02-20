@@ -8,7 +8,7 @@ use Smalot\PdfParser\Parser;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 
-class PdfReader
+class GeminiManager
 {
     private $parser;
     private $task_id;
@@ -25,24 +25,9 @@ class PdfReader
         $this->modelSwitcher = new GeminiModelSwitcher();
     }
 
-
-    public function getTextFromPages($filePath)
-    {
-        $pdf = $this->parser->parseFile($filePath);
-        $pages = $pdf->getPages();
-        $texts = [];
-
-        foreach ($pages as $page) {
-            $texts[] = $page->getText();
-        }
-
-        return $texts;
-    }
-
     public function uploadFileNew($api_key, $filePath, $displayName, $contentType='application/pdf')
     {
         $client = new Client();
-        error_log("Starting upload of '{$filePath}' to Google Cloud Storage...");
         $url = "https://generativelanguage.googleapis.com/upload/v1beta/files?key={$api_key}";
         $fileContent = file_get_contents($filePath);
         $mimeType = mime_content_type($filePath);
@@ -249,10 +234,6 @@ class PdfReader
         $taskManager = new TaskManager();
         $chatHistory = $taskManager->get_student_task_chat_history($this->task_id, $this->class_id, $this->user_username);
 
-        error_log("Analyzing Excel files...");
-        error_log("  File 1: {$fileUri1}");
-        error_log("  File 2: {$fileUri2}");
-
         $chatHistoryArray = [];
         foreach ($chatHistory as $chat) {
             $chatHistoryArray[] = [
@@ -326,10 +307,6 @@ class PdfReader
         global $prompts;
         $taskManager = new TaskManager();
         $chatHistory = $taskManager->get_student_task_chat_history($this->task_id, $this->class_id, $this->user_username);
-
-        error_log("Asking from Excel file...");
-        error_log("  File 1: {$fileUri}");
-        error_log("  File 2: {$fileUri2}");
 
         $chatHistoryArray = [];
         foreach ($chatHistory as $chat) {
@@ -741,11 +718,6 @@ class PdfReader
             $docsUrls = json_decode(file_get_contents($docsUrlsFilePath), true); 
         }
         $embeddings = null;
-        // if (file_exists($embeddingsFilePath)) { 
-        //     echo "Loading URLs from $embeddingsFilePath\n";
-        //     $embeddings = json_decode(file_get_contents($embeddingsFilePath), true); 
-        //     return var_dump($embeddings);
-        // }
         $json_content = file_get_contents($embeddingsFilePath);
         $data = json_decode($json_content, true);
 
@@ -889,47 +861,28 @@ class PdfReader
                     $plain_text = strip_tags($url_content);
                     // Append to $url_texts
                     $url_texts .= $plain_text . "\n";
-
-                    // Print the URL and similarity score
-                    // echo "URL: {$url}\n";
-                    // echo "Similarity: " . number_format($similarity, 4) . "\n";
                 }
 
                 // decode HTML entities first
                 $url_texts = html_entity_decode($url_texts, ENT_QUOTES, 'UTF-8');
-
-                // // make sure $url_texts texts only contains utf-8 characters. If not, remove them
-                // $url_texts = preg_replace('/[^\p{L}\p{N}\s]/u', '', $url_texts);
                 
                 $tempFilePath = tempnam(sys_get_temp_dir(), 'url_texts_') . '.txt';
                 if (file_put_contents($tempFilePath, $url_texts) === false) {
                     throw new Exception("Failed to write temporary file");
                 }
 
-                error_log('before upload temp txt file for embeddings');
-                // read and error_log the file contents
-                error_log(file_get_contents($tempFilePath));
                 $tempFileUri = $this->uploadFileNew($api_key, $tempFilePath, 'url_texts_.txt', 'text/plain')[0];
-                error_log('after upload temp txt file for embeddings ' . $tempFileUri);
                 $system_prompt = "You must answer the question using the text and some general knowledge. Do not mention where you got the answer. Speak in Lithuanian!";
                 if ($hasQuestion) {
-                    error_log('before analyzeTxt');
-                    error_log("API Key: $api_key");
-                    error_log("Temp File URI: $tempFileUri");
-                    error_log("English Prompt: $english_prompt");
-                    error_log("System Prompt: $system_prompt");
                     $answer = $this->analyzeTxt($api_key, $tempFileUri, $english_prompt , $system_prompt);
                 } else {
                     $answer = $message;
                 }
-                // $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
-
                 $answer .= "\n<table class='table is-fullwidth'>";
                 for($i = 0; $i < count($urls); $i++) {
 
                     // Print the URL and similarity score
                     $answer .= "<tr><td> " . $urls[$i] . " </td><td> " . $lang['cosine_similarity'] . " " . number_format($similarities[$i], 4) . " </td></tr>";
-                    // echo $lang['cosine_similarity'] . " " . number_format($similarities[$i], 4) . " ";
                 }
                 $answer .= "</table>";
                 $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'model',  $system_prompt,  $answer);
@@ -973,7 +926,6 @@ class PdfReader
         $url = "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=$API_KEY";
         
         // Extract the first 5 words for the title
-        // $title = implode(' ', array_slice(explode(' ', $text), 0, 5));  
         
         $data = array(
           'model' => 'models/text-embedding-004',
@@ -981,7 +933,6 @@ class PdfReader
             'parts' => array(
               array(
                 'text' => $text //,
-                // 'title' => $title, 
               ),
             ),
           ),
@@ -1000,7 +951,6 @@ class PdfReader
         curl_close($ch);
       
         $response = json_decode($response, true);
-        // print_r($response);
         return $response['embedding']['values'];
     }
 
@@ -1009,9 +959,6 @@ class PdfReader
         global $prompts;
         $this->modelSwitcher->setApiKey($api_key);
 
-        // if (empty($system_prompt)) {
-        //     $system_prompt = $prompts['analyze_txt_system_prompt'];
-        // }
         $jsonData = [
             'systemInstruction' => [
                 'parts' => [
@@ -1041,11 +988,9 @@ class PdfReader
         ];
 
         try {
-            error_log("Sending image text analyze request to Gemini API");
             $response = $this->modelSwitcher->makeRequest($jsonData);
     
             $responseData = json_decode($response['response'], true);
-            error_log("Response data: " . json_encode($responseData));
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 // Return only the text part
                 return $responseData['candidates'][0]['content']['parts'][0]['text'];

@@ -10,30 +10,6 @@ class ExcelReader {
         $this->inputFileName = $inputFileName;
     }
 
-    public function readData() {
-        // Load the spreadsheet
-        $spreadsheet = IOFactory::load($this->inputFileName);
-        // Get the active sheet
-        $sheet = $spreadsheet->getActiveSheet();
-        // Read data from the sheet
-        $data = $sheet->toArray();
-        return $data;
-    }
-
-    public function readFormulas() {
-        $spreadsheet = IOFactory::load($this->inputFileName);
-        $sheet = $spreadsheet->getActiveSheet();
-        $formulas = [];
-        foreach ($sheet->getRowIterator() as $row) {
-            $rowFormulas = [];
-            foreach ($row->getCellIterator() as $cell) {
-                $rowFormulas[] = $cell->getValue(); // This will also capture formulas
-            }
-            $formulas[] = $rowFormulas;
-        }
-        return $formulas;
-    }
-
     public function readDataWithCoordinates() {
         $spreadsheet = IOFactory::load($this->inputFileName);
         $data = [];
