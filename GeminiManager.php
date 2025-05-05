@@ -114,7 +114,7 @@ class GeminiManager
             ],
             'generationConfig' => [
                 'temperature' => 1,
-                'topK' => 64,
+                'topK' => 40,
                 'topP' => 0.95,
                 'maxOutputTokens' => 8192,
                 'responseMimeType' => 'text/plain',
@@ -201,7 +201,7 @@ class GeminiManager
             ],
             'generationConfig' => [
                 'temperature' => 1,
-                'topK' => 64,
+                'topK' => 40,
                 'topP' => 0.95,
                 'maxOutputTokens' => 8192,
                 'responseMimeType' => 'application/json',
@@ -273,7 +273,7 @@ class GeminiManager
             ],
             'generationConfig' => [
                 'temperature' => 1,
-                'topK' => 64,
+                'topK' => 40,
                 'topP' => 0.95,
                 'maxOutputTokens' => 8192,
                 'responseMimeType' => 'text/plain',
@@ -348,7 +348,7 @@ class GeminiManager
             ],
             'generationConfig' => [
                 'temperature' => 1,
-                'topK' => 64,
+                'topK' => 40,
                 'topP' => 0.95,
                 'maxOutputTokens' => 8192,
                 'responseMimeType' => 'text/plain',
@@ -359,8 +359,7 @@ class GeminiManager
             $response = $this->modelSwitcher->makeRequest($jsonData);
     
             $responseData = json_decode($response['response'], true);
-    
-            // $responseData = json_decode($response->getBody()->getContents(), true);            
+
             if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
                 $text = $responseData['candidates'][0]['content']['parts'][0]['text'];
                 $taskManager->insert_student_task_chat_history($this->task_id,$this->class_id, $this->user_username, 'user',  $system_prompt,  $message);
@@ -432,7 +431,7 @@ class GeminiManager
             ],
             'generationConfig' => [
                 'temperature' => 1,
-                'topK' => 64,
+                'topK' => 40,
                 'topP' => 0.95,
                 'maxOutputTokens' => 8192,
                 'responseMimeType' => 'text/plain',
@@ -528,7 +527,7 @@ class GeminiManager
             ],
             'generationConfig' => [
                 'temperature' => 1,
-                'topK' => 64,
+                'topK' => 40,
                 'topP' => 0.95,
                 'maxOutputTokens' => 8192,
                 'responseMimeType' => 'text/plain',
@@ -578,7 +577,7 @@ class GeminiManager
             ],
             'generationConfig' => [
                 'temperature' => 1,
-                'topK' => 64,
+                'topK' => 40,
                 'topP' => 0.95,
                 'maxOutputTokens' => 8192,
                 'responseMimeType' => 'text/plain',
@@ -660,7 +659,7 @@ class GeminiManager
             ],
             'generationConfig' => [
                 'temperature' => 1,
-                'topK' => 64,
+                'topK' => 40,
                 'topP' => 0.95,
                 'maxOutputTokens' => 8192,
                 'responseMimeType' => 'text/plain',
@@ -753,7 +752,7 @@ class GeminiManager
             ],
             'generationConfig' => [
                 'temperature' => 1,
-                'topK' => 64,
+                'topK' => 40,
                 'topP' => 0.95,
                 'maxOutputTokens' => 8192,
                 'responseMimeType' => 'text/plain',
@@ -980,7 +979,7 @@ class GeminiManager
             ],
             'generationConfig' => [
                 'temperature' => 1,
-                'topK' => 64,
+                'topK' => 40,
                 'topP' => 0.95,
                 'maxOutputTokens' => 8192,
                 'responseMimeType' => 'text/plain',

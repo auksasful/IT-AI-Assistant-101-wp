@@ -32,7 +32,9 @@ class ExcelReader {
                         $value .= " ( $calculatedValue )";
                     }
 
-                    $sheetData[$coordinate] = $value;
+                    if ($value != null && $value != "") {
+                        $sheetData[$coordinate] = $value;
+                    }
                 }
             }
             $data[$sheetName] = $sheetData;
